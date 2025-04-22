@@ -1,0 +1,10 @@
+ca-certificates=20240203
+python3=3.12.3-0ubuntu2
+git=1:2.43.0-1ubuntu7.2
+openssh-client=1:9.6p1-3ubuntu13.9
+python3-dev=3.12.3-0ubuntu2
+python3-pip=24.0+dfsg-1ubuntu1.1
+python3-venv=3.12.3-0ubuntu2
+python3-apt=2.7.7ubuntu4
+python3-tqdm=4.66.2-2
+python3-requests=2.31.0+dfsg-1ubuntu1
