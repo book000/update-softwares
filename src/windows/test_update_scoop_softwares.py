@@ -1,12 +1,8 @@
 import unittest
 import tempfile
-import os
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-import psutil
-
-import src.windows.update_scoop_softwares as update_scoop_softwares
 from src.windows.update_scoop_softwares import (
     update_scoop_repos,
     get_scoop_status,
