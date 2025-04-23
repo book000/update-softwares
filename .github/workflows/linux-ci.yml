@@ -38,7 +38,7 @@ jobs:
 
       - name: Run tests
         run: |
-          python -m unittest discover -s src/linux -p "test_*.py"
+          python3 -m unittest discover -s src/linux -p "test_*.py"
 
   check-finished:
     name: Check finished CI
