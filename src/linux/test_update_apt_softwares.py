@@ -141,7 +141,7 @@ class TestUpdateAptSoftwares(unittest.TestCase):
         mock_run_apt_full_upgrade.return_value = True
 
         # 実行
-        from update_apt_softwares import run
+        from src.linux.update_apt_softwares import run
         run(mock_issue_instance, "test-host")
 
         # アサーション
@@ -152,7 +152,7 @@ class TestUpdateAptSoftwares(unittest.TestCase):
     @patch("src.linux.update_apt_softwares.is_root", return_value=False)
     @patch("src.linux.update_apt_softwares.logger")
     def test_run_no_root(self, mock_logger, mock_is_root):
-        from update_apt_softwares import run
+        from src.linux.update_apt_softwares import run
         run(None, "test-host")
 
         # アサーション
@@ -167,7 +167,7 @@ class TestUpdateAptSoftwares(unittest.TestCase):
         mock_issue_instance = MagicMock()
         mock_github_issue.return_value = mock_issue_instance
 
-        from update_apt_softwares import run
+        from src.linux.update_apt_softwares import run
         run(mock_issue_instance, "test-host")
 
         # アサーション
