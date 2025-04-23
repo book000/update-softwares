@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from update_apt_softwares import is_root, run_apt_update, get_apt_full_upgrade_target, run_apt_full_upgrade
+from src.linux.update_apt_softwares import is_root, run_apt_update, get_apt_full_upgrade_target, run_apt_full_upgrade
 
 class TestUpdateAptSoftwares(unittest.TestCase):
     # 正常系: root権限での実行確認
@@ -100,8 +100,8 @@ class TestUpdateAptSoftwares(unittest.TestCase):
 
     # 修正: test_run_apt_full_upgrade_failureで例外を正しく発生させる
     @patch("apt.Cache")
-    @patch("update_apt_softwares.TqdmAcquireProgress")
-    @patch("update_apt_softwares.TqdmInstallProgress")
+    @patch("src.linux.update_apt_softwares.TqdmAcquireProgress")
+    @patch("src.linux.update_apt_softwares.TqdmInstallProgress")
     def test_run_apt_full_upgrade_failure(self, mock_install_progress, mock_acquire_progress, mock_cache):
         mock_cache_instance = MagicMock()
         mock_cache.return_value = mock_cache_instance
@@ -115,8 +115,8 @@ class TestUpdateAptSoftwares(unittest.TestCase):
 
     # 正常系: フルアップグレードの実行
     @patch("apt.Cache")
-    @patch("update_apt_softwares.TqdmAcquireProgress")
-    @patch("update_apt_softwares.TqdmInstallProgress")
+    @patch("src.linux.update_apt_softwares.TqdmAcquireProgress")
+    @patch("src.linux.update_apt_softwares.TqdmInstallProgress")
     def test_run_apt_full_upgrade(self, mock_install_progress, mock_acquire_progress, mock_cache):
         mock_cache_instance = MagicMock()
         mock_cache.return_value = mock_cache_instance
@@ -126,12 +126,12 @@ class TestUpdateAptSoftwares(unittest.TestCase):
         mock_cache_instance.commit.assert_called_once_with(mock_acquire_progress(), mock_install_progress())
 
     # 正常系: run関数のテスト
-    @patch("update_apt_softwares.run_apt_update")
-    @patch("update_apt_softwares.get_apt_full_upgrade_target")
-    @patch("update_apt_softwares.run_apt_full_upgrade")
-    @patch("update_apt_softwares.is_root", return_value=True)
-    @patch("update_apt_softwares.logger")
-    @patch("update_apt_softwares.GitHubIssue")
+    @patch("src.linux.update_apt_softwares.run_apt_update")
+    @patch("src.linux.update_apt_softwares.get_apt_full_upgrade_target")
+    @patch("src.linux.update_apt_softwares.run_apt_full_upgrade")
+    @patch("src.linux.update_apt_softwares.is_root", return_value=True)
+    @patch("src.linux.update_apt_softwares.logger")
+    @patch("src.linux.update_apt_softwares.GitHubIssue")
     def test_run_success(self, mock_github_issue, mock_logger, mock_is_root, mock_run_apt_full_upgrade, mock_get_apt_full_upgrade_target, mock_run_apt_update):
         # モックの設定
         mock_issue_instance = MagicMock()
@@ -149,8 +149,8 @@ class TestUpdateAptSoftwares(unittest.TestCase):
         mock_issue_instance.update_software_update_row.assert_called()  # GitHubIssueの更新が呼ばれていることを確認
 
     # 異常系: root権限がない場合
-    @patch("update_apt_softwares.is_root", return_value=False)
-    @patch("update_apt_softwares.logger")
+    @patch("src.linux.update_apt_softwares.is_root", return_value=False)
+    @patch("src.linux.update_apt_softwares.logger")
     def test_run_no_root(self, mock_logger, mock_is_root):
         from update_apt_softwares import run
         run(None, "test-host")
@@ -159,10 +159,10 @@ class TestUpdateAptSoftwares(unittest.TestCase):
         mock_logger.error.assert_called_with("This script must be run as root.")
 
     # 修正: test_run_apt_update_exceptionでgithub_issueをモックとして渡す
-    @patch("update_apt_softwares.run_apt_update", side_effect=Exception("Update failed"))
-    @patch("update_apt_softwares.is_root", return_value=True)
-    @patch("update_apt_softwares.logger")
-    @patch("update_apt_softwares.GitHubIssue")
+    @patch("src.linux.update_apt_softwares.run_apt_update", side_effect=Exception("Update failed"))
+    @patch("src.linux.update_apt_softwares.is_root", return_value=True)
+    @patch("src.linux.update_apt_softwares.logger")
+    @patch("src.linux.update_apt_softwares.GitHubIssue")
     def test_run_apt_update_exception(self, mock_github_issue, mock_logger, mock_is_root, mock_run_apt_update):
         mock_issue_instance = MagicMock()
         mock_github_issue.return_value = mock_issue_instance
