@@ -4,6 +4,7 @@ import time
 import apt
 import logging
 from tqdm import tqdm
+from typing import List, Tuple
 
 from .. import GitHubIssue, is_root
 
@@ -16,7 +17,7 @@ def run_apt_update() -> apt.Cache:
 
     return cache
 
-def get_apt_full_upgrade_target(cache) -> tuple:
+def get_apt_full_upgrade_target(cache) -> Tuple[apt.Cache, List[apt.Package], List[apt.Package], List[apt.Package]]:
     cache.upgrade(dist_upgrade=True)
 
     changes = cache.get_changes()
@@ -38,7 +39,7 @@ def run_apt_full_upgrade() -> bool:
         logger.error(f"An error occurred during the upgrade: {e}")
         return False
 
-def post_github_comment(github_issue: GitHubIssue, hostname: str, to_upgrade: list[apt.Package], to_install: list[apt.Package], to_remove: list[apt.Package]) -> None:
+def post_github_comment(github_issue: GitHubIssue, hostname: str, to_upgrade: List[apt.Package], to_install: List[apt.Package], to_remove: List[apt.Package]) -> None:
     # Update the issue body with the upgrade information
     comment_body = textwrap.dedent("""
     ## {markdown_computer_name} : apt upgrade
