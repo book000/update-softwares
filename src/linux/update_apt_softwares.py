@@ -3,6 +3,7 @@ import textwrap
 import time
 import apt
 import logging
+from .. import GitHubIssue # required by tests
 
 from .. import is_root
 
