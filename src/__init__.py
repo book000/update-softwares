@@ -13,7 +13,7 @@ class GitHubIssue:
 
   row_regex = re.compile(r"(?P<markdown>.*) <!-- update-softwares#(?P<computer_name>.+)#(?P<package_manager>.+) -->")
 
-  def __init__(self, repo_name: str, issue_number: str, github_token: str):
+  def __init__(self, repo_name, issue_number, github_token):
     self.repo_name = repo_name
     self.issue_number = issue_number
     self.github_token = github_token
@@ -21,7 +21,7 @@ class GitHubIssue:
     self.body = self.__get_issue_body()
     self.software_updates = self.__get_software_update_rows()
 
-  def get_package_managers(self, computer_name: str) -> list[str]:
+  def get_package_managers(self, computer_name):
     package_managers = []
     for software_update in self.software_updates:
       if software_update["computer_name"] == computer_name:
@@ -29,7 +29,7 @@ class GitHubIssue:
 
     return package_managers
 
-  def update_software_update_row(self, computer_name: str, package_manager: str, status: str, upgraded: str, failed: str) -> bool:
+  def update_software_update_row(self, computer_name, package_manager, status, upgraded, failed):
     if status not in self.status_mapping:
       raise Exception(f"Invalid status: {status}. Valid values are {list(self.status_mapping.keys())}")
 
@@ -53,7 +53,7 @@ class GitHubIssue:
 
     return False
 
-  def update_issue_body(self) -> bool:
+  def update_issue_body(self):
     # self.storage_rows の内容を元に、issue の本文を更新する
     # <!-- update-softwares#computer_name#package_manager --> というコメントを探して、その行を更新する
     rows = self.body.split("\n")
@@ -88,14 +88,14 @@ class GitHubIssue:
 
     return True
 
-  def get_markdown_computer_name(self, computer_name: str) -> str:
+  def get_markdown_computer_name(self, computer_name):
     for software_update in self.software_updates:
       if software_update["computer_name"] == computer_name:
         return software_update["markdown"]["computer_name"]
 
     raise Exception("Failed to get markdown computer name")
 
-  def comment(self, body: str) -> None:
+  def comment(self, body):
     response = requests.post(
       f"https://api.github.com/repos/{self.repo_name}/issues/{self.issue_number}/comments",
       headers={
@@ -108,7 +108,7 @@ class GitHubIssue:
     if response.status_code != 201:
       raise Exception(f"Failed to post comment: {response.text}")
 
-  def __get_issue_body(self) -> str:
+  def __get_issue_body(self):
     url = f"https://api.github.com/repos/{self.repo_name}/issues/{self.issue_number}"
     headers = {
       "Authorization": f"token {self.github_token}"
@@ -120,7 +120,7 @@ class GitHubIssue:
 
     return response.json()["body"]
 
-  def __get_software_update_rows(self) -> list[dict]:
+  def __get_software_update_rows(self):
     software_updates = []
     lines = self.body.split("\n")
 
@@ -158,7 +158,7 @@ class GitHubIssue:
     return software_updates
 
 
-def is_valid_issue_number(issue_number) -> bool:
+def is_valid_issue_number(issue_number):
   if issue_number is None:
     return False
 
@@ -167,18 +167,18 @@ def is_valid_issue_number(issue_number) -> bool:
 
   return True
 
-def get_real_hostname() -> str:
+def get_real_hostname():
   if os.name == 'nt':
     return os.environ['COMPUTERNAME']
   else:
     return os.uname()[1]
 
-def get_github_token() -> str:
+def get_github_token():
   if not os.path.exists("data/github_token.txt"):
     raise Exception("Please create data/github_token.txt")
 
   with open("data/github_token.txt", "r", encoding="utf-8") as f:
     return f.read().strip()
 
-def is_root() -> bool:
+def is_root():
     return os.geteuid() == 0

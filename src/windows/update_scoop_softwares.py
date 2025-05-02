@@ -6,7 +6,6 @@ import time
 from venv import logger
 
 import psutil
-from .. import GitHubIssue
 import traceback
 
 def update_scoop_repos():
@@ -83,7 +82,7 @@ def get_scoop_status():
 
     return results
 
-def post_github_comment(github_issue: GitHubIssue, hostname, status_results):
+def post_github_comment(github_issue, hostname, status_results):
   # GitHub Issue にコメントを投稿する
   comment_body = textwrap.dedent("""
   ## {markdown_computer_name} : scoop upgrade
@@ -219,7 +218,7 @@ def start_app(app_name, app_processes):
             print(f"Failed to start {exe_path}: {e}")
 
 
-def run(github_issue: GitHubIssue, hostname: str) -> None:
+def run(github_issue, hostname) -> None:
     try:
         github_issue.update_software_update_row(
             computer_name=hostname,
