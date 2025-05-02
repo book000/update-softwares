@@ -38,7 +38,7 @@ def run_apt_full_upgrade() -> bool:
         logger.error(f"An error occurred during the upgrade: {e}")
         return False
 
-def post_github_comment(github_issue: GitHubIssue, hostname: str, to_upgrade: list[apt.Package], to_install: list, to_remove: list) -> None:
+def post_github_comment(github_issue: GitHubIssue, hostname: str, to_upgrade: list[apt.Package], to_install: list[apt.Package], to_remove: list[apt.Package]) -> None:
     # Update the issue body with the upgrade information
     comment_body = textwrap.dedent("""
     ## {markdown_computer_name} : apt upgrade
