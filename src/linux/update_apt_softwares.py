@@ -61,10 +61,10 @@ def get_apt_full_upgrade_target(cache) -> tuple:
 
     return cache, to_upgrade, to_install, to_remove
 
-def run_apt_full_upgrade(cache) -> bool:
+def run_apt_full_upgrade() -> bool:
     try:
-        result = cache.commit(TqdmAcquireProgress(), TqdmInstallProgress())
-        return result
+        result = os.system("apt-get -y dist-upgrade")
+        return result == 0
     except Exception as e:
         logger.error(f"An error occurred during the upgrade: {e}")
         return False
@@ -153,14 +153,22 @@ def run(github_issue: GitHubIssue, hostname: str) -> None:
         github_issue.update_issue_body()
 
         logger.info("Upgrading packages...")
-        result = run_apt_full_upgrade(cache)
+        result = run_apt_full_upgrade()
         final_status = "success" if result else "failed"
+
+        cache, upgraded_to_upgrade, upgraded_to_install, upgraded_to_remove = get_apt_full_upgrade_target(cache)
+        logger.info(f"Upgraded packages after upgrade: {len(upgraded_to_upgrade)}")
+        logger.info(f"Installed packages after upgrade: {len(upgraded_to_install)}")
+        logger.info(f"Removed packages after upgrade: {len(upgraded_to_remove)}")
+
+        diff_to_upgrade = len(to_upgrade) - len(upgraded_to_upgrade)
+        fail_count = len(to_upgrade) - diff_to_upgrade
 
         github_issue.update_software_update_row(
             computer_name=hostname,
             package_manager="apt",
-            upgraded=str(len(to_upgrade)),
-            failed="",
+            upgraded=str(diff_to_upgrade),
+            failed=str(fail_count),
             status=final_status,
         )
         github_issue.update_issue_body()
@@ -171,7 +179,7 @@ def run(github_issue: GitHubIssue, hostname: str) -> None:
         time.sleep(10)
 
         # Restart the system if necessary
-        os.system("sudo shutdown -r 0")
+        os.system("shutdown -r 0")
     except Exception as e:
         logger.error(f"An error occurred during the upgrade: {e}")
         github_issue.update_software_update_row(
