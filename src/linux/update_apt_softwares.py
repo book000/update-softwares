@@ -62,9 +62,9 @@ def post_github_comment(github_issue: GitHubIssue, hostname: str, to_upgrade: li
     {to_remove_list}
     """).strip()
 
-    to_upgrade_list = "\n".join([f"- {pkg.name} ({pkg.installed.version} -> {pkg.candidate.version})" for pkg in to_upgrade])
-    to_install_list = "\n".join([f"- {pkg.name} ({pkg.candidate.version})" for pkg in to_install])
-    to_remove_list = "\n".join([f"- {pkg.name} ({pkg.installed.version})" for pkg in to_remove])
+    to_upgrade_list = "\n".join([f"- `{pkg.name}` (`{pkg.installed.version}` -> `{pkg.candidate.version}`)" for pkg in to_upgrade])
+    to_install_list = "\n".join([f"- `{pkg.name}` (`{pkg.candidate.version}`)" for pkg in to_install])
+    to_remove_list = "\n".join([f"- `{pkg.name}` (`{pkg.installed.version}`)" for pkg in to_remove])
     comment_body = comment_body.format(
         markdown_computer_name=github_issue.get_markdown_computer_name(hostname),
         to_upgrade=len(to_upgrade),
