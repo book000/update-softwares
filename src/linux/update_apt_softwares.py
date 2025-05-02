@@ -38,7 +38,7 @@ def run_apt_full_upgrade() -> bool:
         logger.error(f"An error occurred during the upgrade: {e}")
         return False
 
-def post_github_comment(github_issue: GitHubIssue, hostname: str, to_upgrade: list, to_install: list, to_remove: list) -> None:
+def post_github_comment(github_issue: GitHubIssue, hostname: str, to_upgrade: list[apt.Package], to_install: list[apt.Package], to_remove: list[apt.Package]) -> None:
     # Update the issue body with the upgrade information
     comment_body = textwrap.dedent("""
     ## {markdown_computer_name} : apt upgrade
@@ -62,9 +62,9 @@ def post_github_comment(github_issue: GitHubIssue, hostname: str, to_upgrade: li
     {to_remove_list}
     """).strip()
 
-    to_upgrade_list = "\n".join([f"- {pkg.name}" for pkg in to_upgrade])
-    to_install_list = "\n".join([f"- {pkg.name}" for pkg in to_install])
-    to_remove_list = "\n".join([f"- {pkg.name}" for pkg in to_remove])
+    to_upgrade_list = "\n".join([f"- {pkg.name} ({pkg.installed.version} -> {pkg.candidate.version})" for pkg in to_upgrade])
+    to_install_list = "\n".join([f"- {pkg.name} ({pkg.candidate.version})" for pkg in to_install])
+    to_remove_list = "\n".join([f"- {pkg.name} ({pkg.installed.version})" for pkg in to_remove])
     comment_body = comment_body.format(
         markdown_computer_name=github_issue.get_markdown_computer_name(hostname),
         to_upgrade=len(to_upgrade),
@@ -125,6 +125,7 @@ def run(github_issue: GitHubIssue, hostname: str) -> None:
         result = run_apt_full_upgrade()
         final_status = "success" if result else "failed"
 
+        cache = run_apt_update()
         cache, upgraded_to_upgrade, upgraded_to_install, upgraded_to_remove = get_apt_full_upgrade_target(cache)
         logger.info(f"Upgraded packages after upgrade: {len(upgraded_to_upgrade)}")
         logger.info(f"Installed packages after upgrade: {len(upgraded_to_install)}")
