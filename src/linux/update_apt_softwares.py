@@ -3,10 +3,8 @@ import textwrap
 import time
 import apt
 import logging
-from tqdm import tqdm
-from typing import List, Tuple
 
-from .. import GitHubIssue, is_root
+from .. import is_root
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +15,7 @@ def run_apt_update() -> apt.Cache:
 
     return cache
 
-def get_apt_full_upgrade_target(cache) -> Tuple[apt.Cache, List[apt.Package], List[apt.Package], List[apt.Package]]:
+def get_apt_full_upgrade_target(cache):
     cache.upgrade(dist_upgrade=True)
 
     changes = cache.get_changes()
@@ -39,7 +37,7 @@ def run_apt_full_upgrade() -> bool:
         logger.error(f"An error occurred during the upgrade: {e}")
         return False
 
-def post_github_comment(github_issue: GitHubIssue, hostname: str, to_upgrade: List[apt.Package], to_install: List[apt.Package], to_remove: List[apt.Package]) -> None:
+def post_github_comment(github_issue, hostname, to_upgrade, to_install, to_remove):
     # Update the issue body with the upgrade information
     comment_body = textwrap.dedent("""
     ## {markdown_computer_name} : apt upgrade
@@ -77,7 +75,7 @@ def post_github_comment(github_issue: GitHubIssue, hostname: str, to_upgrade: Li
     )
     github_issue.comment(comment_body)
 
-def run(github_issue: GitHubIssue, hostname: str) -> None:
+def run(github_issue, hostname):
     if not is_root():
         logger.error("This script must be run as root.")
         return
