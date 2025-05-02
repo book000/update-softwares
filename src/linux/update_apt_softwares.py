@@ -167,7 +167,7 @@ def run(github_issue: GitHubIssue, hostname: str) -> None:
 
         logger.info("Upgrade complete.")
 
-        print("Restarting the system in 10 seconds...")
+        logger.info("Restarting the system in 10 seconds...")
         time.sleep(10)
 
         # Restart the system if necessary
