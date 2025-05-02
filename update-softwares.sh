@@ -7,7 +7,7 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-# Required: git, python3, python3-venv
+# Required: git, python3
 function check_command() {
   if ! type "$1" >/dev/null 2>&1; then
     read -p "Do you want to install $1? [y/n]: " yn
@@ -47,4 +47,4 @@ else
   git pull
 fi
 
-python -m src "$ISSUE_NUMBER"
+python3 -m src "$ISSUE_NUMBER"
