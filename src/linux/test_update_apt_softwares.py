@@ -99,31 +99,39 @@ class TestUpdateAptSoftwares(unittest.TestCase):
         self.assertEqual(len(to_remove), 1)
 
     # 修正: test_run_apt_full_upgrade_failureで例外を正しく発生させる
-    @patch("apt.Cache")
-    @patch("src.linux.update_apt_softwares.TqdmAcquireProgress")
-    @patch("src.linux.update_apt_softwares.TqdmInstallProgress")
-    def test_run_apt_full_upgrade_failure(self, mock_install_progress, mock_acquire_progress, mock_cache):
-        mock_cache_instance = MagicMock()
-        mock_cache.return_value = mock_cache_instance
-        mock_cache_instance.commit.side_effect = Exception("Upgrade failed")
+    @patch("os.system")
+    def test_run_apt_full_upgrade_failure(self, mock_system):
+        mock_system.side_effect = Exception("Upgrade failed")
 
         # 実行
-        result = run_apt_full_upgrade(mock_cache_instance)
+        result = run_apt_full_upgrade()
 
         # アサーション
         self.assertFalse(result)
 
     # 正常系: フルアップグレードの実行
-    @patch("apt.Cache")
-    @patch("src.linux.update_apt_softwares.TqdmAcquireProgress")
-    @patch("src.linux.update_apt_softwares.TqdmInstallProgress")
-    def test_run_apt_full_upgrade(self, mock_install_progress, mock_acquire_progress, mock_cache):
-        mock_cache_instance = MagicMock()
-        mock_cache.return_value = mock_cache_instance
+    @patch("os.system")
+    def test_run_apt_full_upgrade(self, mock_system):
+        mock_system.return_value = 0
 
-        run_apt_full_upgrade(mock_cache_instance)
+        # 実行
+        result = run_apt_full_upgrade()
 
-        mock_cache_instance.commit.assert_called_once_with(mock_acquire_progress(), mock_install_progress())
+        # アサーション
+        self.assertTrue(result)
+        mock_system.assert_called_once_with("apt-get -y dist-upgrade")
+
+    # 異常系: フルアップグレードの実行失敗
+    @patch("os.system")
+    def test_run_apt_full_upgrade_failure(self, mock_system):
+        mock_system.return_value = 1
+
+        # 実行
+        result = run_apt_full_upgrade()
+
+        # アサーション
+        self.assertFalse(result)
+        mock_system.assert_called_once_with("apt-get -y dist-upgrade")
 
     # 正常系: run関数のテスト
     @patch("src.linux.update_apt_softwares.run_apt_update")
