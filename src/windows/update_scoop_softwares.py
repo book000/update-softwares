@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import re
+import subprocess
 import textwrap
 import time
 from venv import logger
@@ -212,7 +213,7 @@ def start_app(app_name, app_processes):
             continue
 
         try:
-            os.startfile(exe_path)
+            subprocess.Popen([exe_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             print(f"Started {exe_path}.")
         except Exception as e:
             print(f"Failed to start {exe_path}: {e}")
