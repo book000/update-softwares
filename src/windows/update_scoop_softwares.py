@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import re
+import textwrap
 import time
 from venv import logger
 
@@ -84,13 +85,13 @@ def get_scoop_status():
 
 def post_github_comment(github_issue: GitHubIssue, hostname, status_results):
   # GitHub Issue にコメントを投稿する
-  comment_body = """
+  comment_body = textwrap.dedent("""
   ## {markdown_computer_name} : scoop upgrade
 
   ### Upgrades
 
   {upgrade_list}
-  """
+  """).strip()
 
   upgrade_lists = []
   if status_results:
