@@ -1,4 +1,6 @@
 import os
+import textwrap
+import time
 import apt
 import logging
 from tqdm import tqdm
@@ -69,8 +71,8 @@ def run_apt_full_upgrade(cache) -> bool:
 
 def post_github_comment(github_issue: GitHubIssue, hostname: str, to_upgrade: list, to_install: list, to_remove: list) -> None:
     # Update the issue body with the upgrade information
-    comment_body = """
-    ## {{ markdown_computer_name }} : apt upgrade
+    comment_body = textwrap.dedent("""
+    ## {markdown_computer_name} : apt upgrade
 
     | Type | Count |
     | ---- | ---- |
@@ -89,7 +91,7 @@ def post_github_comment(github_issue: GitHubIssue, hostname: str, to_upgrade: li
     ### Removals
 
     {to_remove_list}
-    """
+    """).strip()
 
     to_upgrade_list = "\n".join([f"- {pkg.name}" for pkg in to_upgrade])
     to_install_list = "\n".join([f"- {pkg.name}" for pkg in to_install])
@@ -164,6 +166,9 @@ def run(github_issue: GitHubIssue, hostname: str) -> None:
         github_issue.update_issue_body()
 
         logger.info("Upgrade complete.")
+
+        print("Restarting the system in 10 seconds...")
+        time.sleep(10)
 
         # Restart the system if necessary
         os.system("sudo shutdown -r 0")
