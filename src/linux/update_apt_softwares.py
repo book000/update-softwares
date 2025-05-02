@@ -9,37 +9,6 @@ from .. import GitHubIssue, is_root
 
 logger = logging.getLogger(__name__)
 
-class TqdmAcquireProgress(apt.progress.base.AcquireProgress):
-    def __init__(self):
-        super().__init__()
-        self.bar = None
-
-    def start(self):
-        self.bar = tqdm(total=self.total_items, desc="Downloading", unit="pkg")
-
-    def stop(self):
-        if self.bar:
-            self.bar.close()
-
-    def fetch(self, item):
-        if self.bar:
-            self.bar.update(1)
-
-class TqdmInstallProgress(apt.progress.base.InstallProgress):
-    def __init__(self):
-        super().__init__()
-        self.bar = tqdm(total=100, desc="Installing", unit="%")
-
-    def status_change(self, pkg, percent, status):
-        self.bar.n = percent
-        self.bar.set_description(f"Installing {pkg.name}")
-        self.bar.refresh()
-
-    def finish_update(self):
-        self.bar.n = 100
-        self.bar.refresh()
-        self.bar.close()
-
 def run_apt_update() -> apt.Cache:
     cache = apt.Cache()
     cache.update()
