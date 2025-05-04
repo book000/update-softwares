@@ -140,7 +140,7 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
             exe.write_text('')
             start_app('app1', [{'name': 'app.exe'}])
             # subprocess.Popen should be called with the exe path
-            mock_popen.assert_called_with([exe], stdout=unittest.mock.ANY, stderr=unittest.mock.ANY)
+            mock_popen.assert_called_with([str(exe)], stdout=unittest.mock.ANY, stderr=unittest.mock.ANY)
 
 
 if __name__ == '__main__':
