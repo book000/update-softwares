@@ -128,8 +128,9 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
         mp.terminate.assert_called()
 
     @patch('src.windows.update_scoop_softwares.os.getenv')
-    @patch('src.windows.update_scoop_softwares.os.startfile')
-    def test_start_app(self, mock_startfile, mock_getenv):
+    @patch('src.windows.update_scoop_softwares.os.path.exists', return_value=True)
+    @patch('src.windows.update_scoop_softwares.subprocess.Popen')
+    def test_start_app(self, mock_popen, mock_exists, mock_getenv):
         with tempfile.TemporaryDirectory() as tmpdir:
             mock_getenv.return_value = tmpdir
             # create apps/app1/current/app.exe
@@ -138,8 +139,8 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
             exe = app_path / 'app.exe'
             exe.write_text('')
             start_app('app1', [{'name': 'app.exe'}])
-            # os.startfile should be called with a Path object
-            mock_startfile.assert_called_with(exe)
+            # subprocess.Popen should be called with the exe path
+            mock_popen.assert_called_with([exe], stdout=unittest.mock.ANY, stderr=unittest.mock.ANY)
 
 
 if __name__ == '__main__':
