@@ -35,10 +35,6 @@ class GitHubIssue:
 
     checkmark = self.status_mapping[status]
 
-    # 最新のissue bodyを取得してself.software_updatesを更新
-    self.body = self.__get_issue_body()
-    self.software_updates = self.__get_software_update_rows()
-
     for software_update in self.software_updates:
       if software_update["computer_name"] == computer_name and software_update["package_manager"] == package_manager:
         software_update["markdown"]["checkmark"] = checkmark
@@ -58,6 +54,9 @@ class GitHubIssue:
     return False
 
   def update_issue_body(self):
+    # 最新のissue本文を取得して同時実行時の競合を防ぐ
+    self.body = self.__get_issue_body()
+    
     # self.storage_rows の内容を元に、issue の本文を更新する
     # <!-- update-softwares#computer_name#package_manager --> というコメントを探して、その行を更新する
     rows = self.body.split("\n")
