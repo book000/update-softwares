@@ -35,6 +35,10 @@ class GitHubIssue:
 
     checkmark = self.status_mapping[status]
 
+    # 最新のissue bodyを取得してself.software_updatesを更新
+    self.body = self.__get_issue_body()
+    self.software_updates = self.__get_software_update_rows()
+
     for software_update in self.software_updates:
       if software_update["computer_name"] == computer_name and software_update["package_manager"] == package_manager:
         software_update["markdown"]["checkmark"] = checkmark
