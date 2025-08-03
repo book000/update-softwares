@@ -30,11 +30,15 @@ jobs:
         run: |
           sudo apt-get update
           grep -vE '^\s*#|^\s*$' .devcontainer/apt-packages.txt | xargs sudo apt-get install -y
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Run tests
         run: |
           python3 --version
           python3 -m unittest discover -s src/linux -p "test_*.py"
+          python3 -m unittest discover -s src/windows -p "test_*.py"
+          python3 -m unittest src.test_github_issue_atomic
 
   check-finished:
     name: Check finished CI for Linux
