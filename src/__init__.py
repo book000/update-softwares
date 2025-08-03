@@ -1,12 +1,14 @@
 import os
 import re
 import requests
+import time
 
 class GitHubIssue:
   body = None
   software_updates = None
   initial_body_state = None
   pending_updates = None
+  RETRY_SLEEP_MULTIPLIER = 0.5  # Sleep multiplier for retry backoff
   status_mapping = {
     "success": "✅",
     "running": "⏳",
@@ -68,7 +70,7 @@ class GitHubIssue:
         current_body = self.__get_issue_body()
         
         # Parse the current software updates from the latest body
-        current_software_updates = self.__get_software_update_rows_from_body(current_body)
+        current_software_updates = self._get_software_update_rows_from_body(current_body)
         
         # Find and update the specific row
         updated = False
@@ -94,7 +96,7 @@ class GitHubIssue:
           raise Exception(f"No matching software update row found for {computer_name}#{package_manager}")
         
         # Build the new body with updated content
-        new_body = self.__build_updated_body(current_body, current_software_updates)
+        new_body = self._build_updated_body(current_body, current_software_updates)
         
         # Attempt to update the issue
         response = requests.patch(
@@ -121,13 +123,12 @@ class GitHubIssue:
           raise e
         else:
           # Wait briefly before retrying to reduce contention
-          import time
-          time.sleep(0.5 * (retry_count + 1))
+          time.sleep(self.RETRY_SLEEP_MULTIPLIER * (retry_count + 1))
           continue
     
     return False
 
-  def __build_updated_body(self, body, software_updates):
+  def _build_updated_body(self, body, software_updates):
     """Build the updated issue body with the modified software updates."""
     rows = body.split("\n")
     new_rows = []
@@ -146,7 +147,7 @@ class GitHubIssue:
 
     return "\n".join(new_rows)
 
-  def __get_software_update_rows_from_body(self, body):
+  def _get_software_update_rows_from_body(self, body):
     """Parse software update rows from a given body content."""
     software_updates = []
     lines = body.split("\n")

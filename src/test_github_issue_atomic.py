@@ -154,7 +154,7 @@ class TestGitHubIssueAtomic(unittest.TestCase):
             "| ✅ | Computer2 | Windows | scoop | 5 | 0 | <!-- update-softwares#Computer2#scoop -->"
         )
         
-        software_updates = github_issue._GitHubIssue__get_software_update_rows_from_body(test_body)
+        software_updates = github_issue._get_software_update_rows_from_body(test_body)
         
         self.assertEqual(len(software_updates), 2)
         
@@ -189,13 +189,13 @@ class TestGitHubIssueAtomic(unittest.TestCase):
         )
         
         # Parse and modify software updates
-        software_updates = github_issue._GitHubIssue__get_software_update_rows_from_body(original_body)
+        software_updates = github_issue._get_software_update_rows_from_body(original_body)
         software_updates[0]["markdown"]["checkmark"] = "✅"
         software_updates[0]["markdown"]["upgraded"] = "3"
         software_updates[0]["markdown"]["failed"] = "1"
         software_updates[0]["markdown"]["raw"] = "| ✅ | Computer1 | Linux | apt | 3 | 1 |"
         
-        updated_body = github_issue._GitHubIssue__build_updated_body(original_body, software_updates)
+        updated_body = github_issue._build_updated_body(original_body, software_updates)
         
         # Verify the updated body contains the new values
         self.assertIn("| ✅ | Computer1 | Linux | apt | 3 | 1 | <!-- update-softwares#Computer1#apt -->", updated_body)
