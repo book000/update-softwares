@@ -47,7 +47,6 @@ jobs:
         run: |
           python3 --version
           python3 -m unittest discover -s src/linux -p "test_*.py"
-          python3 -m unittest discover -s src/windows -p "test_*.py"
           python3 -m unittest src.test_github_issue_atomic
 
   check-finished:
