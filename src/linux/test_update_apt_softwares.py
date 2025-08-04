@@ -1,5 +1,10 @@
 import unittest
 from unittest.mock import patch, MagicMock
+import sys
+
+# Mock apt module to prevent import errors in CI environments
+sys.modules['apt'] = MagicMock()
+
 from src.linux.update_apt_softwares import is_root, run_apt_update, get_apt_full_upgrade_target, run_apt_full_upgrade
 
 class TestUpdateAptSoftwares(unittest.TestCase):
