@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock, mock_open
 import os
+import sys
 from src import is_valid_issue_number, get_real_hostname, get_github_token, is_root
 
 class TestCommonFunctions(unittest.TestCase):
@@ -29,6 +30,7 @@ class TestCommonFunctions(unittest.TestCase):
         hostname = get_real_hostname()
         self.assertEqual(hostname, 'WIN-COMPUTER')
     
+    @unittest.skipIf(os.name == 'nt', "Unix-specific test")
     @patch('os.name', 'posix')
     def test_get_real_hostname_unix(self):
         """Test hostname retrieval on Unix/Linux"""
@@ -52,22 +54,24 @@ class TestCommonFunctions(unittest.TestCase):
             get_github_token()
         self.assertEqual(str(context.exception), "Please create data/github_token.txt")
     
+    @unittest.skipIf(os.name == 'nt', "Unix-specific test")
     def test_is_root_true(self):
         """Test root user detection (Unix/Linux)"""
         with patch('os.geteuid', return_value=0):
             self.assertTrue(is_root())
     
+    @unittest.skipIf(os.name == 'nt', "Unix-specific test")
     def test_is_root_false(self):
         """Test non-root user detection (Unix/Linux)"""
         with patch('os.geteuid', return_value=1000):
             self.assertFalse(is_root())
     
+    @unittest.skipIf(os.name != 'nt', "Windows-specific test")
     def test_is_root_windows_fallback(self):
         """Test root detection on Windows (should handle exception)"""
         # On Windows, os.geteuid() doesn't exist, so this should handle the exception
-        with patch('os.geteuid', side_effect=AttributeError("module 'os' has no attribute 'geteuid'")):
-            with self.assertRaises(AttributeError):
-                is_root()
+        with self.assertRaises(AttributeError):
+            is_root()
 
 if __name__ == "__main__":
     unittest.main()
