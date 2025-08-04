@@ -29,12 +29,26 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          grep -vE '^\s*#|^\s*$' .devcontainer/apt-packages.txt | xargs sudo apt-get install -y
+          # Install packages with fallback to available versions
+          while IFS= read -r package || [[ -n "$package" ]]; do
+            if [[ ! "$package" =~ ^[[:space:]]*$ ]] && [[ ! "$package" =~ ^# ]]; then
+              echo "Installing $package"
+              sudo apt-get install -y "$package" || {
+                package_name=${package%=*}
+                echo "Version specific install failed, trying $package_name without version"
+                sudo apt-get install -y "$package_name"
+              }
+            fi
+          done < .devcontainer/apt-packages.txt
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Run tests
         run: |
           python3 --version
           python3 -m unittest discover -s src/linux -p "test_*.py"
+          python3 -m unittest src.test_github_issue_atomic
+          python3 -m unittest src.test_common
 
   check-finished:
     name: Check finished CI for Linux

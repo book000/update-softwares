@@ -83,14 +83,14 @@ def run(github_issue, hostname):
 
     try:
         logger.info("Starting apt update and full upgrade...")
-        github_issue.update_software_update_row(
+        # Set initial status to running
+        github_issue.atomic_update_with_retry(
             computer_name=hostname,
             package_manager="apt",
             upgraded="",
             failed="",
             status="running",
         )
-        github_issue.update_issue_body()
 
         logger.info("Updating package list...")
         cache = run_apt_update()
@@ -100,26 +100,26 @@ def run(github_issue, hostname):
         logger.info(f"Removed packages: {len(to_remove)}")
 
         if not to_upgrade and not to_install and not to_remove:
-            github_issue.update_software_update_row(
+            # No updates needed - set final status
+            github_issue.atomic_update_with_retry(
                 computer_name=hostname,
                 package_manager="apt",
                 upgraded="0",
                 failed="0",
                 status="success",
             )
-            github_issue.update_issue_body()
             return
 
         post_github_comment(github_issue, hostname, to_upgrade, to_install, to_remove)
 
-        github_issue.update_software_update_row(
+        # Update status before starting upgrade
+        github_issue.atomic_update_with_retry(
             computer_name=hostname,
             package_manager="apt",
             upgraded=str(len(to_upgrade)),
             failed="",
             status="running",
         )
-        github_issue.update_issue_body()
 
         logger.info("Upgrading packages...")
         result = run_apt_full_upgrade()
@@ -134,14 +134,14 @@ def run(github_issue, hostname):
         diff_to_upgrade = len(to_upgrade) - len(upgraded_to_upgrade)
         fail_count = len(to_upgrade) - diff_to_upgrade
 
-        github_issue.update_software_update_row(
+        # Set final status atomically
+        github_issue.atomic_update_with_retry(
             computer_name=hostname,
             package_manager="apt",
             upgraded=str(diff_to_upgrade),
             failed=str(fail_count),
             status=final_status,
         )
-        github_issue.update_issue_body()
 
         logger.info("Upgrade complete.")
 
@@ -152,11 +152,11 @@ def run(github_issue, hostname):
         os.system("shutdown -r 0")
     except Exception as e:
         logger.error(f"An error occurred during the upgrade: {e}")
-        github_issue.update_software_update_row(
+        # Set error status atomically
+        github_issue.atomic_update_with_retry(
             computer_name=hostname,
             package_manager="apt",
             upgraded="",
             failed="1",
             status="failed",
         )
-        github_issue.update_issue_body()

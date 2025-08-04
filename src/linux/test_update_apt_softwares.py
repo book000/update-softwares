@@ -1,5 +1,10 @@
 import unittest
 from unittest.mock import patch, MagicMock
+import sys
+
+# Mock apt module to prevent import errors in CI environments
+sys.modules['apt'] = MagicMock()
+
 from src.linux.update_apt_softwares import is_root, run_apt_update, get_apt_full_upgrade_target, run_apt_full_upgrade
 
 class TestUpdateAptSoftwares(unittest.TestCase):
@@ -154,7 +159,7 @@ class TestUpdateAptSoftwares(unittest.TestCase):
 
         # アサーション
         mock_logger.info.assert_called()  # ログが出力されていることを確認
-        mock_issue_instance.update_software_update_row.assert_called()  # GitHubIssueの更新が呼ばれていることを確認
+        mock_issue_instance.atomic_update_with_retry.assert_called()  # GitHubIssueの原子的更新が呼ばれていることを確認
 
     # 異常系: root権限がない場合
     @patch("src.linux.update_apt_softwares.is_root", return_value=False)

@@ -221,14 +221,14 @@ def start_app(app_name, app_processes):
 
 def run(github_issue, hostname) -> None:
     try:
-        github_issue.update_software_update_row(
+        # Set initial status to running
+        github_issue.atomic_update_with_retry(
             computer_name=hostname,
             package_manager="scoop",
             upgraded="",
             failed="",
             status="running",
         )
-        github_issue.update_issue_body()
 
         update_scoop_repos()
 
@@ -242,14 +242,14 @@ def run(github_issue, hostname) -> None:
         print(f"Running applications: {len(running_app_processes)}")
         print(f"Not running applications: {len(not_running_apps)}")
 
-        github_issue.update_software_update_row(
+        # Update status before starting upgrades
+        github_issue.atomic_update_with_retry(
             computer_name=hostname,
             package_manager="scoop",
             upgraded=str(len(not_running_apps)),
             failed="",
             status="running",
         )
-        github_issue.update_issue_body()
 
         print("Updating not running applications...")
         not_running_apps_results = update_scoop_apps(not_running_apps)
@@ -272,14 +272,14 @@ def run(github_issue, hostname) -> None:
 
         status = "success" if failed_count == 0 else "failed"
 
-        github_issue.update_software_update_row(
+        # Set final status atomically
+        github_issue.atomic_update_with_retry(
             computer_name=hostname,
             package_manager="scoop",
             upgraded=str(success_count),
             failed=str(failed_count),
             status=status,
         )
-        github_issue.update_issue_body()
 
         upgraded_status_results = get_scoop_status()
         print("Failed upgrade applications:")
@@ -289,11 +289,11 @@ def run(github_issue, hostname) -> None:
     except Exception as e:
         logger.error(f"An error occurred during the upgrade: {e}")
         logger.error(traceback.format_exc())
-        github_issue.update_software_update_row(
+        # Set error status atomically
+        github_issue.atomic_update_with_retry(
             computer_name=hostname,
             package_manager="scoop",
             upgraded="",
             failed="",
             status="failed",
         )
-        github_issue.update_issue_body()

@@ -1,10 +1,14 @@
 import os
 import re
 import requests
+import time
 
 class GitHubIssue:
   body = None
   software_updates = None
+  initial_body_state = None
+  pending_updates = None
+  RETRY_SLEEP_MULTIPLIER = 0.5  # Sleep multiplier for retry backoff
   status_mapping = {
     "success": "✅",
     "running": "⏳",
@@ -17,8 +21,10 @@ class GitHubIssue:
     self.repo_name = repo_name
     self.issue_number = issue_number
     self.github_token = github_token
+    self.pending_updates = {}
 
     self.body = self.__get_issue_body()
+    self.initial_body_state = self.body
     self.software_updates = self.__get_software_update_rows()
 
   def get_package_managers(self, computer_name):
@@ -52,6 +58,132 @@ class GitHubIssue:
         return True
 
     return False
+
+  def atomic_update_with_retry(self, computer_name, package_manager, status, upgraded, failed, max_retries=3):
+    """
+    Atomically update the issue body with retry logic to handle concurrent updates.
+    This method combines update processing and GitHub Issue body reflection into a single operation.
+    """
+    for retry_count in range(max_retries):
+      try:
+        # Get the latest issue body to check for conflicts
+        current_body = self.__get_issue_body()
+        
+        # Parse the current software updates from the latest body
+        current_software_updates = self._get_software_update_rows_from_body(current_body)
+        
+        # Find and update the specific row
+        updated = False
+        for software_update in current_software_updates:
+          if software_update["computer_name"] == computer_name and software_update["package_manager"] == package_manager:
+            # Update the status
+            checkmark = self.status_mapping.get(status, status)
+            software_update["markdown"]["checkmark"] = checkmark
+            software_update["markdown"]["upgraded"] = upgraded
+            software_update["markdown"]["failed"] = failed
+            software_update["markdown"]["raw"] = "| " + " | ".join([
+              software_update["markdown"]["checkmark"],
+              software_update["markdown"]["computer_name"],
+              software_update["markdown"]["operation_system"],
+              software_update["markdown"]["package_manager"],
+              software_update["markdown"]["upgraded"],
+              software_update["markdown"]["failed"]
+            ]) + " |"
+            updated = True
+            break
+        
+        if not updated:
+          raise Exception(f"No matching software update row found for {computer_name}#{package_manager}")
+        
+        # Build the new body with updated content
+        new_body = self._build_updated_body(current_body, current_software_updates)
+        
+        # Attempt to update the issue
+        response = requests.patch(
+          f"https://api.github.com/repos/{self.repo_name}/issues/{self.issue_number}",
+          headers={
+            "Authorization": f"token {self.github_token}"
+          },
+          json={
+            "body": new_body
+          }
+        )
+        
+        if response.status_code == 200:
+          # Success - update our local state
+          self.body = new_body
+          self.software_updates = current_software_updates
+          return True
+        else:
+          raise Exception(f"Failed to update issue body: {response.text}")
+          
+      except Exception as e:
+        if retry_count == max_retries - 1:
+          # Last retry failed, propagate the exception
+          raise e
+        else:
+          # Wait briefly before retrying to reduce contention
+          time.sleep(self.RETRY_SLEEP_MULTIPLIER * (retry_count + 1))
+          continue
+    
+    return False
+
+  def _build_updated_body(self, body, software_updates):
+    """Build the updated issue body with the modified software updates."""
+    rows = body.split("\n")
+    new_rows = []
+    for row in rows:
+      m = self.row_regex.match(row)
+      if m is None:
+        new_rows.append(row)
+        continue
+
+      computer_name = m.group("computer_name")
+      package_manager = m.group("package_manager")
+      for software_update in software_updates:
+        if software_update["computer_name"] == computer_name and software_update["package_manager"] == package_manager:
+          new_rows.append(software_update["markdown"]["raw"] + f" <!-- update-softwares#{computer_name}#{package_manager} -->")
+          break
+
+    return "\n".join(new_rows)
+
+  def _get_software_update_rows_from_body(self, body):
+    """Parse software update rows from a given body content."""
+    software_updates = []
+    lines = body.split("\n")
+
+    for line in lines:
+      m = self.row_regex.match(line)
+      if m is None:
+        continue
+
+      # | で split して、それぞれの値を取得する
+      markdown = m.group("markdown")
+      split_markdown = markdown.split("|")
+      if len(split_markdown) != 8:
+        continue
+      checkmark = split_markdown[1].strip()
+      view_computer_name = split_markdown[2].strip()
+      operation_system = split_markdown[3].strip()
+      package_manager = split_markdown[4].strip()
+      upgraded = split_markdown[5].strip()
+      failed = split_markdown[6].strip()
+
+      software_updates.append({
+        "markdown": {
+          "checkmark": checkmark,
+          "computer_name": view_computer_name,
+          "operation_system": operation_system,
+          "package_manager": package_manager,
+          "upgraded": upgraded,
+          "failed": failed,
+          "raw": markdown
+        },
+        "computer_name": m.group("computer_name"),
+        "package_manager": m.group("package_manager")
+      })
+
+    return software_updates
 
   def update_issue_body(self):
     # 最新のissue本文を取得して同時実行時の競合を防ぐ
