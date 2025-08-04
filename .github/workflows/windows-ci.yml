@@ -38,6 +38,7 @@ jobs:
         run: |
           python -m unittest discover -s src/windows -p "test_*.py"
           python -m unittest src.test_github_issue_atomic
+          python -m unittest src.test_common
 
   check-finished:
     name: Check finished CI for Windows

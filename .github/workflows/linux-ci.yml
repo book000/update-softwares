@@ -48,6 +48,7 @@ jobs:
           python3 --version
           python3 -m unittest discover -s src/linux -p "test_*.py"
           python3 -m unittest src.test_github_issue_atomic
+          python3 -m unittest src.test_common
 
   check-finished:
     name: Check finished CI for Linux
