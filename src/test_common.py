@@ -30,12 +30,11 @@ class TestCommonFunctions(unittest.TestCase):
         self.assertEqual(hostname, 'WIN-COMPUTER')
     
     @patch('os.name', 'posix')
-    @patch('os.uname')
-    def test_get_real_hostname_unix(self, mock_uname):
+    def test_get_real_hostname_unix(self):
         """Test hostname retrieval on Unix/Linux"""
-        mock_uname.return_value = ('Linux', 'linux-computer', '5.4.0', '#1 SMP', 'x86_64')
-        hostname = get_real_hostname()
-        self.assertEqual(hostname, 'linux-computer')
+        with patch('os.uname', return_value=('Linux', 'linux-computer', '5.4.0', '#1 SMP', 'x86_64')):
+            hostname = get_real_hostname()
+            self.assertEqual(hostname, 'linux-computer')
     
     @patch('os.path.exists')
     @patch('builtins.open', mock_open(read_data='test_token_123'))
@@ -53,22 +52,22 @@ class TestCommonFunctions(unittest.TestCase):
             get_github_token()
         self.assertEqual(str(context.exception), "Please create data/github_token.txt")
     
-    @patch('os.geteuid', return_value=0)
-    def test_is_root_true(self, mock_geteuid):
+    def test_is_root_true(self):
         """Test root user detection (Unix/Linux)"""
-        self.assertTrue(is_root())
+        with patch('os.geteuid', return_value=0):
+            self.assertTrue(is_root())
     
-    @patch('os.geteuid', return_value=1000)
-    def test_is_root_false(self, mock_geteuid):
+    def test_is_root_false(self):
         """Test non-root user detection (Unix/Linux)"""
-        self.assertFalse(is_root())
+        with patch('os.geteuid', return_value=1000):
+            self.assertFalse(is_root())
     
-    @patch('os.geteuid', side_effect=Exception("Windows doesn't have geteuid"))
-    def test_is_root_windows_fallback(self, mock_geteuid):
+    def test_is_root_windows_fallback(self):
         """Test root detection on Windows (should handle exception)"""
         # On Windows, os.geteuid() doesn't exist, so this should handle the exception
-        with self.assertRaises(Exception):
-            is_root()
+        with patch('os.geteuid', side_effect=AttributeError("module 'os' has no attribute 'geteuid'")):
+            with self.assertRaises(AttributeError):
+                is_root()
 
 if __name__ == "__main__":
     unittest.main()
