@@ -317,3 +317,11 @@ def get_github_token():
 
 def is_root():
     return os.geteuid() == 0
+
+def is_windows():
+    """Check if the current environment is Windows"""
+    return os.name == 'nt'
+
+def is_linux():
+    """Check if the current environment is Linux/Unix"""
+    return os.name == 'posix'

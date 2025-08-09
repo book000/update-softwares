@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch, MagicMock, mock_open
 import os
 import sys
-from src import is_valid_issue_number, get_real_hostname, get_github_token, is_root
+from src import is_valid_issue_number, get_real_hostname, get_github_token, is_root, is_windows, is_linux
 
 class TestCommonFunctions(unittest.TestCase):
     """Test common utility functions in src/__init__.py"""
@@ -72,6 +72,26 @@ class TestCommonFunctions(unittest.TestCase):
         # On Windows, os.geteuid() doesn't exist, so this should handle the exception
         with self.assertRaises(AttributeError):
             is_root()
+
+    @patch('os.name', 'nt')
+    def test_is_windows_true(self):
+        """Test Windows OS detection when os.name is 'nt'"""
+        self.assertTrue(is_windows())
+
+    @patch('os.name', 'posix')
+    def test_is_windows_false(self):
+        """Test Windows OS detection when os.name is not 'nt'"""
+        self.assertFalse(is_windows())
+
+    @patch('os.name', 'posix')
+    def test_is_linux_true(self):
+        """Test Linux OS detection when os.name is 'posix'"""
+        self.assertTrue(is_linux())
+
+    @patch('os.name', 'nt')
+    def test_is_linux_false(self):
+        """Test Linux OS detection when os.name is not 'posix'"""
+        self.assertFalse(is_linux())
 
 if __name__ == "__main__":
     unittest.main()

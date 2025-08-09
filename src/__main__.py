@@ -2,7 +2,7 @@ import logging
 import os
 import sys
 
-from . import GitHubIssue, get_github_token, get_real_hostname, is_valid_issue_number
+from . import GitHubIssue, get_github_token, get_real_hostname, is_valid_issue_number, is_windows, is_linux
 
 
 def main():
@@ -39,9 +39,15 @@ def main():
 
   for package_manager in package_managers:
     if package_manager == "apt":
+      if not is_linux():
+        logging.warning(f"Skipping apt package manager: current environment is not Linux (package manager requires Linux)")
+        continue
       from .linux.update_apt_softwares import run as apt_update_run
       apt_update_run(github_issue, hostname)
     elif package_manager == "scoop":
+      if not is_windows():
+        logging.warning(f"Skipping scoop package manager: current environment is not Windows (package manager requires Windows)")
+        continue
       from .windows.update_scoop_softwares import run as scoop_update_run
       scoop_update_run(github_issue, hostname)
     else:
