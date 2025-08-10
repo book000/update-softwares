@@ -6,6 +6,46 @@ Software update automation tool that manages package updates for Linux (apt) and
 
 Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
 
+## 日本語コミュニケーション要件
+
+すべてのコミュニケーションは日本語で行ってください。
+
+### Issue および PR の記述要件
+
+- **Issue タイトル・本文**: 日本語で記述
+- **PR タイトル・本文**: 日本語で記述（Conventional Commits の仕様に従う）
+- **コミットメッセージ**: 日本語で記述（Conventional Commits の仕様に従う）
+- **レビューコメント**: 日本語で記述
+- **コード内コメント**: 日本語で記述
+
+### Conventional Commits の仕様
+
+コミットメッセージおよび PR タイトルは以下の形式に従ってください：
+
+```
+<type>: <description>
+
+[optional body]
+```
+
+`<type>` は以下のいずれかを使用：
+
+- `feat`: 新機能追加
+- `fix`: バグ修正
+- `docs`: ドキュメント変更
+- `style`: コードフォーマット変更
+- `refactor`: リファクタリング
+- `test`: テスト追加・修正
+- `chore`: その他の変更
+
+`<description>` は日本語で簡潔に記述してください。  
+`[optional body]` は変更の詳細な説明を日本語で記述します。
+
+### フォーマット要件
+
+- すべての Heading とその本文の間には、空白行を入れる
+- 英数字と日本語の間には、半角スペースを入れる
+
 ## Working Effectively
 
 ### Setup and Dependencies
