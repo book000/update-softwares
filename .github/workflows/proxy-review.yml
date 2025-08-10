@@ -1,0 +1,20 @@
+name: Proxy review
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  proxy-review:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.review.state == 'approved' &&
+      github.event.pull_request.user.id == 198982749 &&
+      github.event.review.user.id == 8929706
+
+    steps:
+      - name: Approve PR
+        run: |
+          gh pr review ${{ github.event.pull_request.number }} -R "$GITHUB_REPOSITORY" -a -b "Proxy approval following book000's review."
+        env:
+          GITHUB_TOKEN: ${{ secrets.AKUBIUSA_ACCESS_TOKEN }}
