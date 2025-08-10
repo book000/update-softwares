@@ -1,10 +1,10 @@
 # update-softwares
 
-**CRITICAL: Always follow these instructions completely and precisely. Only resort to additional search or context gathering if the information provided here is incomplete or found to be in error.**
+**重要: 以下の指示を完全かつ正確に従ってください。ここで提供される情報が不完全または間違いが見つかった場合のみ、追加の検索やコンテキスト収集に頼ってください。**
 
-Software update automation tool that manages package updates for Linux (apt) and Windows (scoop) systems. The application integrates with GitHub Issues API to track and report update progress in table format across multiple machines.
+Linux (apt) と Windows (scoop) システム向けのパッケージ更新を管理するソフトウェア更新自動化ツール。アプリケーションは GitHub Issues API と統合して、複数のマシン間でテーブル形式での更新進捗を追跡・報告します。
 
-Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
+常にこれらの指示を最初に参照し、ここの情報と一致しない予期しない情報に遭遇した場合のみ、検索や bash コマンドにフォールバックしてください。
 
 ## 日本語コミュニケーション要件
 
@@ -46,45 +46,45 @@ Always reference these instructions first and fallback to search or bash command
 - すべての Heading とその本文の間には、空白行を入れる
 - 英数字と日本語の間には、半角スペースを入れる
 
-## Working Effectively
+## 効果的な作業方法
 
-### Setup and Dependencies
-- Install Python dependencies: `pip install -r requirements.txt` -- takes ~5 seconds, NEVER CANCEL, set timeout to 60+ seconds for safety
-- NEVER CANCEL: Most operations are fast (<10 seconds), but Windows tests take ~25 seconds due to sleep timers
-- Dependencies: `requests==2.32.4` and `psutil==7.0.0`
-- Python 3.12+ required for optimal compatibility
+### セットアップと依存関係
+- Python 依存関係をインストール: `pip install -r requirements.txt` -- 約 5 秒かかります、絶対にキャンセルしないでください、安全のためタイムアウトを 60 秒以上に設定
+- 絶対にキャンセル厳禁: ほとんどの操作は高速（10 秒未満）ですが、Windows テストはスリープタイマーにより約 25 秒かかります
+- 依存関係: `requests==2.32.4` と `psutil==7.0.0`
+- 最適な互換性のため Python 3.12+ が必要
 
-### Build and Test Process
-- Run all tests: `python3 -m unittest discover -s src -p "test_*.py"` -- takes ~25 seconds, NEVER CANCEL, set timeout to 60+ seconds
-- Run Linux-specific tests: `python3 -m unittest discover -s src/linux -p "test_*.py"` -- takes ~0.2 seconds, NEVER CANCEL, set timeout to 30+ seconds
-- Run Windows-specific tests: `python3 -m unittest discover -s src/windows -p "test_*.py"` -- takes ~25 seconds, NEVER CANCEL, set timeout to 60+ seconds
-- Run atomic update tests: `python3 -m unittest src.test_github_issue_atomic` -- takes ~0.2 seconds, NEVER CANCEL, set timeout to 30+ seconds  
-- Run common utility tests: `python3 -m unittest src.test_common` -- takes ~0.2 seconds, NEVER CANCEL, set timeout to 30+ seconds
-- Windows tests include sleep timers and take significantly longer than Linux tests
+### ビルドとテストプロセス
+- 全テスト実行: `python3 -m unittest discover -s src -p "test_*.py"` -- 約 25 秒かかります、絶対にキャンセルしないでください、タイムアウトを 60 秒以上に設定
+- Linux 固有テスト実行: `python3 -m unittest discover -s src/linux -p "test_*.py"` -- 約 0.2 秒かかります、絶対にキャンセルしないでください、タイムアウトを 30 秒以上に設定
+- Windows 固有テスト実行: `python3 -m unittest discover -s src/windows -p "test_*.py"` -- 約 25 秒かかります、絶対にキャンセルしないでください、タイムアウトを 60 秒以上に設定
+- アトミック更新テスト実行: `python3 -m unittest src.test_github_issue_atomic` -- 約 0.2 秒かかります、絶対にキャンセルしないでください、タイムアウトを 30 秒以上に設定
+- 共通ユーティリティテスト実行: `python3 -m unittest src.test_common` -- 約 0.2 秒かかります、絶対にキャンセルしないでください、タイムアウトを 30 秒以上に設定
+- Windows テストにはスリープタイマーが含まれており、Linux テストよりも大幅に時間がかかります
 
-### Running the Application
-- REQUIRED SETUP: Create `data/github_token.txt` with valid GitHub personal access token
-- Run with: `python3 -m src ISSUE_NUMBER` where ISSUE_NUMBER is a valid GitHub issue number
-- Application requires root privileges for apt operations on Linux
-- Application connects to GitHub API to fetch and update issue status
+### アプリケーションの実行
+- 必須セットアップ: 有効な GitHub パーソナルアクセストークンを含む `data/github_token.txt` を作成
+- 実行方法: `python3 -m src ISSUE_NUMBER`（ISSUE_NUMBER は有効な GitHub issue 番号）
+- Linux での apt 操作にはルート権限が必要
+- アプリケーションは GitHub API に接続して issue ステータスを取得・更新
 
-### Application Architecture
-- **Main entry**: `src/__main__.py` - parses issue number, initializes GitHubIssue, runs platform-specific updates
-- **Core logic**: `src/__init__.py` - GitHubIssue class with atomic update functionality  
-- **Linux support**: `src/linux/update_apt_softwares.py` - apt package management
-- **Windows support**: `src/windows/update_scoop_softwares.py` - scoop package management
-- **Tests**: Comprehensive unit tests with mocking for external dependencies
+### アプリケーションアーキテクチャ
+- **メインエントリ**: `src/__main__.py` - issue 番号を解析、GitHubIssue を初期化、プラットフォーム固有の更新を実行
+- **コアロジック**: `src/__init__.py` - アトミック更新機能を持つ GitHubIssue クラス
+- **Linux サポート**: `src/linux/update_apt_softwares.py` - apt パッケージ管理
+- **Windows サポート**: `src/windows/update_scoop_softwares.py` - scoop パッケージ管理
+- **テスト**: 外部依存関係をモックした包括的なユニットテスト
 
-## Validation
+## 検証
 
-### Manual Testing Steps
-- Always run the complete test suite before making changes
-- **Complete End-to-End Validation Workflow:**
+### 手動テスト手順
+- 変更を行う前に必ず完全なテストスイートを実行してください
+- **完全なエンドツーエンド検証ワークフロー:**
   ```bash
-  # 1. Install dependencies
+  # 1. 依存関係のインストール
   pip install -r requirements.txt
   
-  # 2. Test core imports and functionality
+  # 2. コアインポートと機能のテスト
   python3 -c "import src; print('Import successful')"
   python3 -c "
   from src import get_real_hostname, is_valid_issue_number, is_root
@@ -93,75 +93,75 @@ Always reference these instructions first and fallback to search or bash command
   print(f'Is root: {is_root()}')
   "
   
-  # 3. Run all test suites
+  # 3. 全テストスイートの実行
   python3 -m unittest src.test_github_issue_atomic  # ~0.2s
   python3 -m unittest src.test_common               # ~0.2s  
   python3 -m unittest discover -s src/linux -p "test_*.py"  # ~0.2s
-  # Note: Windows tests take ~25s due to sleep timers - NEVER CANCEL
+  # 注意: Windows テストはスリープタイマーにより約 25 秒かかります - 絶対にキャンセル厳禁
   
-  # 4. Test application setup
+  # 4. アプリケーションセットアップのテスト
   mkdir -p data && echo "test_token" > data/github_token.txt
-  python3 -m src 123  # Should fail at GitHub API call, not before
+  python3 -m src 123  # GitHub API 呼び出しで失敗する前は正常に動作するはず
   ```
-- **Expected Results:** All imports work, all tests pass, application starts and attempts GitHub API call
+- **期待される結果:** 全インポートが動作し、全テストが通過し、アプリケーションが起動して GitHub API 呼び出しを試行
 
-### CI/CD Integration
-- Linux CI: `.github/workflows/linux-ci.yml` installs apt packages and runs all tests
-- Windows CI: `.github/workflows/windows-ci.yml` tests Python 3.8-3.13 compatibility
-- CI installs system packages from `.devcontainer/apt-packages.txt` on Linux
-- NEVER CANCEL: CI builds complete in under 2 minutes, but set timeouts to 5+ minutes
+### CI/CD インテグレーション
+- Linux CI: `.github/workflows/linux-ci.yml` は apt パッケージをインストールして全テストを実行
+- Windows CI: `.github/workflows/windows-ci.yml` は Python 3.8-3.13 の互換性をテスト
+- CI は Linux で `.devcontainer/apt-packages.txt` からシステムパッケージをインストール
+- 絶対にキャンセル厳禁: CI ビルドは 2 分以内に完了しますが、タイムアウトは 5 分以上に設定してください
 
-### Code Quality
-- No formal linting tools configured - follow existing code style
-- Use unittest for all testing - comprehensive mocking patterns established
-- Follow Python naming conventions and existing patterns
-- All external dependencies (requests, apt, psutil) should be mocked in tests
+### コード品質
+- 正式なリンティングツールは設定されていません - 既存のコードスタイルに従ってください
+- 全テストに unittest を使用 - 包括的なモッキングパターンが確立されています
+- Python 命名規則と既存パターンに従ってください
+- 全外部依存関係（requests、apt、psutil）はテストでモック化する必要があります
 
-## Common Tasks
+## 一般的なタスク
 
-### Development Environment
+### 開発環境
 ```bash
-# Repository root contents
-.devcontainer/         # Docker development environment
-.github/workflows/     # CI pipelines for Linux and Windows
-.vscode/              # VSCode configuration
-src/                  # Main Python package
-├── __init__.py       # Core GitHubIssue class and utilities
-├── __main__.py       # Main entry point
-├── linux/           # Linux (apt) specific code
-├── windows/         # Windows (scoop) specific code
-├── test_*.py        # Unit tests
-requirements.txt      # Python dependencies
-update-softwares.sh   # Linux deployment script
-update-softwares.ps1  # Windows deployment script
+# リポジトリルートの内容
+.devcontainer/         # Docker 開発環境
+.github/workflows/     # Linux と Windows の CI パイプライン
+.vscode/              # VSCode 設定
+src/                  # メイン Python パッケージ
+├── __init__.py       # コア GitHubIssue クラスとユーティリティ
+├── __main__.py       # メインエントリポイント
+├── linux/           # Linux (apt) 固有のコード
+├── windows/         # Windows (scoop) 固有のコード
+├── test_*.py        # ユニットテスト
+requirements.txt      # Python 依存関係
+update-softwares.sh   # Linux デプロイメントスクリプト
+update-softwares.ps1  # Windows デプロイメントスクリプト
 ```
 
-### Key Functions and Classes
-- `GitHubIssue` class: Manages GitHub issue updates with atomic retry logic
-- `is_valid_issue_number()`: Validates issue number format
-- `get_real_hostname()`: Cross-platform hostname detection
-- `get_github_token()`: Reads token from data/github_token.txt
-- `is_root()`: Unix root privilege detection
+### 主要な関数とクラス
+- `GitHubIssue` クラス: アトミックリトライロジックを持つ GitHub issue 更新を管理
+- `is_valid_issue_number()`: issue 番号形式を検証
+- `get_real_hostname()`: クロスプラットフォームホスト名検出
+- `get_github_token()`: data/github_token.txt からトークンを読み取り
+- `is_root()`: Unix ルート権限検出
 
-### Deployment Scripts
-- Linux: `update-softwares.sh` - requires root, installs git/python3, clones repo, runs application
-- Windows: `update-softwares.ps1` - installs to user profile, requires ISSUE_NUMBER environment variable
-- Both scripts clone from GitHub and run the application with provided issue number
+### デプロイメントスクリプト
+- Linux: `update-softwares.sh` - ルート権限が必要、git/python3 をインストール、リポジトリをクローン、アプリケーションを実行
+- Windows: `update-softwares.ps1` - ユーザープロファイルにインストール、ISSUE_NUMBER 環境変数が必要
+- 両スクリプトは GitHub からクローンして提供された issue 番号でアプリケーションを実行
 
-### GitHub Integration
-- Application parses issue body for software update status table
-- Updates table rows with checkmarks (⏳ running, ✅ success, 🔴 failed)
-- Uses atomic updates with retry logic to prevent race conditions
-- Posts comments with update details and package counts
-- Requires issues to have specific comment format: `<!-- update-softwares#hostname#package_manager -->`
+### GitHub インテグレーション
+- アプリケーションは issue 本文をパースしてソフトウェア更新ステータステーブルを取得
+- チェックマーク付きでテーブル行を更新（⏳ 実行中、✅ 成功、🔴 失敗）
+- 競合状態を防ぐためにリトライロジック付きアトミック更新を使用
+- 更新詳細とパッケージ数を含むコメントを投稿
+- 特定のコメント形式を持つ issue が必要: `<!-- update-softwares#hostname#package_manager -->`
 
-### Platform-Specific Notes
-- **Linux**: Uses python3-apt library for package management, requires root privileges
-- **Windows**: Uses scoop command-line tool, manages PowerShell execution
-- **Cross-platform**: Hostname detection, issue number validation, GitHub API integration
+### プラットフォーム固有の注意事項
+- **Linux**: パッケージ管理に python3-apt ライブラリを使用、ルート権限が必要
+- **Windows**: scoop コマンドラインツールを使用、PowerShell 実行を管理
+- **クロスプラットフォーム**: ホスト名検出、issue 番号検証、GitHub API インテグレーション
 
-### Error Handling
-- Missing GitHub token: "Please create data/github_token.txt"
-- Invalid issue number: Logs error and exits cleanly
-- Network failures: GitHub API calls have retry logic with exponential backoff
-- Concurrent updates: Atomic update mechanism prevents conflicts between multiple instances
+### エラーハンドリング
+- GitHub トークンが見つからない場合: "Please create data/github_token.txt"
+- 無効な issue 番号: エラーをログに記録してクリーンに終了
+- ネットワーク障害: GitHub API 呼び出しは指数バックオフ付きリトライロジックを持つ
+- 並行更新: アトミック更新メカニズムが複数インスタンス間の競合を防止
