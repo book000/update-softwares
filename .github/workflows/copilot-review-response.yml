@@ -1,0 +1,211 @@
+name: Auto Copilot Review Response
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to process'
+        required: true
+        type: number
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check-copilot-reviews:
+    name: Check and Respond to Copilot Reviews
+    runs-on: ubuntu-latest
+
+    # 手動実行またはコメント実行時に実行
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && 
+       contains(github.event.comment.body, '/copilot-review'))
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Determine PR Number
+        id: get-pr-number
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # 手動実行の場合は入力値を使用
+            PR_NUMBER="${{ github.event.inputs.pr_number }}"
+          elif [ "${{ github.event_name }}" = "issue_comment" ]; then
+            # コメントイベントの場合（PRかどうかは既にif条件でチェック済み）
+            PR_NUMBER="${{ github.event.issue.number }}"
+          else
+            echo "❌ Unsupported event type: ${{ github.event_name }}"
+            exit 1
+          fi
+
+          echo "🎯 Processing PR #${PR_NUMBER}"
+          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+
+      - name: Collect Copilot Review Comments
+        id: collect-reviews
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          PR_NUMBER: ${{ steps.get-pr-number.outputs.pr_number }}
+          REPO_NAME: ${{ github.repository }}
+        run: |
+          echo "🔍 Collecting Copilot review comments for PR #${PR_NUMBER}..."
+
+          # デバッグ情報を出力
+          echo "DEBUG: Repository: ${REPO_NAME}"
+          echo "DEBUG: PR Number: ${PR_NUMBER}"
+
+          # PRの一般的なレビューコメントを取得
+          REVIEW_COMMENTS=$(gh api \
+            "/repos/${REPO_NAME}/pulls/${PR_NUMBER}/reviews" \
+            --jq '
+            [
+              .[] | 
+              select(.user.login == "copilot-pull-request-reviewer[bot]") |
+              select(.state == "COMMENTED" or .state == "commented" or 
+                     .state == "CHANGES_REQUESTED" or .state == "changes_requested") |
+              {
+                id: .id,
+                body: .body,
+                state: .state,
+                submitted_at: .submitted_at
+              }
+            ]
+            ')
+
+          # インラインコメントを取得
+          INLINE_COMMENTS=$(gh api \
+            "/repos/${REPO_NAME}/pulls/${PR_NUMBER}/comments" \
+            --jq '
+            [
+              .[] | 
+              select(.user.login == "copilot-pull-request-reviewer[bot]" or 
+                     .user.login == "Copilot") |
+              {
+                id: .id,
+                body: .body,
+                path: .path,
+                line: .line,
+                diff_hunk: .diff_hunk
+              }
+            ]
+            ')
+
+          # コメント数をカウント
+          REVIEW_COUNT=$(echo "$REVIEW_COMMENTS" | jq 'length')
+          INLINE_COUNT=$(echo "$INLINE_COMMENTS" | jq 'length')
+
+          echo "📝 Found ${REVIEW_COUNT} review comments and ${INLINE_COUNT} inline comments"
+
+          # デバッグ情報を出力
+          echo "DEBUG: Review comments data:"
+          echo "$REVIEW_COMMENTS" | jq '.' || echo "Failed to parse review comments JSON"
+          echo "DEBUG: Inline comments data:"
+          echo "$INLINE_COMMENTS" | jq '.' || echo "Failed to parse inline comments JSON"
+
+          # 結果を環境変数に保存
+          echo "review_count=${REVIEW_COUNT}" >> $GITHUB_OUTPUT
+          echo "inline_count=${INLINE_COUNT}" >> $GITHUB_OUTPUT
+
+          # コメントデータをファイルに保存（複数行データのため）
+          echo "$REVIEW_COMMENTS" > review_comments.json
+          echo "$INLINE_COMMENTS" > inline_comments.json
+
+      - name: Generate Copilot Response Comment
+        id: generate-comment
+        if: >-
+          (steps.collect-reviews.outputs.review_count > 0 || 
+           steps.collect-reviews.outputs.inline_count > 0)
+        env:
+          PR_NUMBER: ${{ steps.get-pr-number.outputs.pr_number }}
+          REVIEW_COUNT: ${{ steps.collect-reviews.outputs.review_count }}
+          INLINE_COUNT: ${{ steps.collect-reviews.outputs.inline_count }}
+          TRIGGER_TYPE: ${{ github.event_name }}
+        run: |
+          # 既存のCopilot再依頼コメントをチェック
+          EXISTING_COMMENT=$(gh pr view ${PR_NUMBER} --json comments --jq '
+            .comments[] | 
+            select(.author.login == "github-actions[bot]" and 
+                   (.body | contains("@Copilot 以下のレビューコメントを修正してください"))) |
+            .id
+          ' | head -1)
+
+          if [ -n "$EXISTING_COMMENT" ]; then
+            echo "⚠️ 既に自動生成されたCopilot再依頼コメントが存在します (ID: $EXISTING_COMMENT)"
+            echo "skip_comment=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # コメント本文を生成
+          cat > comment_body.md << 'EOF'
+          @Copilot 以下のレビューコメントを修正してください。
+
+          ## 🤖 Review Comments Summary
+
+          EOF
+
+          # レビューコメントの処理
+          if [ "$REVIEW_COUNT" -gt 0 ]; then
+            echo "### 📋 General Review Comments" >> comment_body.md
+            echo "" >> comment_body.md
+            
+            jq -r '
+            .[] | 
+            "**Review ID: \(.id)** (submitted: \(.submitted_at))\n\(.body | gsub("\n"; "\n> "))\n\n---\n"
+            ' review_comments.json >> comment_body.md
+          fi
+
+          # インラインコメントの処理
+          if [ "$INLINE_COUNT" -gt 0 ]; then
+            echo "### 📁 File-specific Comments" >> comment_body.md
+            echo "" >> comment_body.md
+            
+            jq -r '
+            .[] | 
+            "**File: `\(.path)` (Line \(.line))**\n> \(.body | gsub("\n"; "\n> "))\n\n---\n"
+            ' inline_comments.json >> comment_body.md
+          fi
+
+          cat >> comment_body.md << 'EOF'
+
+          ## ✅ Action Required
+
+          上記のすべての指摘事項を修正してください。
+
+          ---
+          EOF
+
+          # トリガー情報を追加
+          if [ "$TRIGGER_TYPE" = "workflow_dispatch" ]; then
+            echo "*This comment was automatically generated by GitHub Actions (Manual execution)*" >> comment_body.md
+          elif [ "$TRIGGER_TYPE" = "issue_comment" ]; then
+            echo "*This comment was automatically generated by GitHub Actions (Triggered by comment command)*" >> comment_body.md
+          fi
+
+          echo "✅ Generated comment body"
+          echo "skip_comment=false" >> $GITHUB_OUTPUT
+
+      - name: Post Comment to PR
+        if: >-
+          steps.generate-comment.outputs.skip_comment != 'true' && 
+          (steps.collect-reviews.outputs.review_count > 0 || 
+           steps.collect-reviews.outputs.inline_count > 0)
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          PR_NUMBER: ${{ steps.get-pr-number.outputs.pr_number }}
+        run: |
+          echo "📤 Posting comment to PR #${PR_NUMBER}..."
+
+          # PRにコメントを投稿
+          gh pr comment ${PR_NUMBER} --body-file comment_body.md
+
+          echo "✅ Successfully posted Copilot review response comment"
+
+      - name: Clean up temporary files
+        if: always()
+        run: |
+          rm -f review_comments.json inline_comments.json comment_body.md
