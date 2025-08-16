@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import sys
+import os
 
 # Mock apt module to prevent import errors in CI environments
 sys.modules['apt'] = MagicMock()
@@ -9,11 +10,13 @@ from src.linux.update_apt_softwares import is_root, run_apt_update, get_apt_full
 
 class TestUpdateAptSoftwares(unittest.TestCase):
     # 正常系: root権限での実行確認
+    @unittest.skipIf(os.name == 'nt', "Unix/Linux-specific test")
     @patch("os.geteuid", return_value=0)
     def test_is_root(self, mock_geteuid):
         self.assertTrue(is_root())
 
     # 異常系: root権限でない場合の確認
+    @unittest.skipIf(os.name == 'nt', "Unix/Linux-specific test")
     @patch("os.geteuid", return_value=1000)
     def test_is_not_root(self, mock_geteuid):
         self.assertFalse(is_root())
