@@ -42,13 +42,14 @@ jobs:
           done < .devcontainer/apt-packages.txt
           python3 -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pytest
 
       - name: Run tests
         run: |
           python3 --version
-          python3 -m unittest discover -s src/linux -p "test_*.py"
-          python3 -m unittest src.test_github_issue_atomic
-          python3 -m unittest src.test_common
+          pytest tests/
+        env:
+          PYTHONPATH: .
 
   check-finished:
     name: Check finished CI for Linux
