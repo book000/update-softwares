@@ -127,6 +127,19 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
         self.assertEqual(result, ['n'])
         mp.terminate.assert_called()
 
+    @patch('src.windows.update_scoop_softwares.psutil.Process')
+    def test_stop_app_no_such_process(self, mock_process):
+        # プロセスが存在しない場合の例外処理をテスト
+        import psutil
+        mock_process.side_effect = psutil.NoSuchProcess(1)
+        
+        # 例外が発生してもUnboundLocalErrorが起きないことを確認
+        try:
+            result = stop_app([{'pid': 1, 'name': 'test.exe'}])
+            self.assertEqual(result, [])
+        except UnboundLocalError:
+            self.fail("UnboundLocalError should not be raised")
+
     @patch('src.windows.update_scoop_softwares.os.getenv')
     @patch('src.windows.update_scoop_softwares.os.path.exists', return_value=True)
     @patch('src.windows.update_scoop_softwares.subprocess.Popen')

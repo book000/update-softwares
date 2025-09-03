@@ -183,10 +183,11 @@ def stop_app(app_processes):
     stopped_processes = []
     for process in app_processes:
         pid = process["pid"]
+        process_name = process.get("name", f"PID-{pid}")  # 事前に名前を取得
         try:
-            process = psutil.Process(pid)
-            process_name = process.name()
-            process.terminate()
+            psutil_process = psutil.Process(pid)
+            process_name = psutil_process.name()  # より正確な名前があれば更新
+            psutil_process.terminate()
             stopped_processes.append(process_name)
             print(f"Stopped {process_name}.")
         except (psutil.NoSuchProcess, psutil.AccessDenied):
