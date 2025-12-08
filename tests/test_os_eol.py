@@ -9,6 +9,8 @@ from src.os_eol import (
     get_windows_version_info,
     get_linux_version_info,
     get_os_eol_date,
+    get_os_eol_date_from_api,
+    get_os_eol_date_fallback,
     format_eol_info,
     get_os_eol_info
 )
@@ -172,6 +174,91 @@ class TestOSEOL(unittest.TestCase):
         self.assertIsNotNone(eol_info)
         self.assertIsInstance(eol_info, str)
         self.assertIsInstance(is_critical, bool)
+    
+    @patch('src.os_eol.requests.get')
+    def test_get_os_eol_date_from_api_success(self, mock_get):
+        """API から EOL 日を正常に取得するテスト"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'eol': '2027-04-30'
+        }
+        mock_get.return_value = mock_response
+        
+        eol_date = get_os_eol_date_from_api("Ubuntu", "22.04")
+        
+        self.assertIsNotNone(eol_date)
+        self.assertEqual(eol_date, datetime(2027, 4, 30))
+    
+    @patch('src.os_eol.requests.get')
+    def test_get_os_eol_date_from_api_not_found(self, mock_get):
+        """API で見つからない場合のテスト"""
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_get.return_value = mock_response
+        
+        eol_date = get_os_eol_date_from_api("Ubuntu", "99.99")
+        
+        self.assertIsNone(eol_date)
+    
+    @patch('src.os_eol.requests.get')
+    def test_get_os_eol_date_from_api_timeout(self, mock_get):
+        """API タイムアウト時のテスト"""
+        mock_get.side_effect = Exception("Timeout")
+        
+        eol_date = get_os_eol_date_from_api("Ubuntu", "22.04")
+        
+        self.assertIsNone(eol_date)
+    
+    def test_get_os_eol_date_fallback_fedora(self):
+        """Fedora のフォールバック EOL 日取得テスト"""
+        eol_date = get_os_eol_date_fallback("Fedora", "40")
+        
+        self.assertIsNotNone(eol_date)
+        self.assertEqual(eol_date, datetime(2025, 5, 13))
+    
+    def test_get_os_eol_date_fallback_centos(self):
+        """CentOS のフォールバック EOL 日取得テスト"""
+        eol_date = get_os_eol_date_fallback("CentOS", "7")
+        
+        self.assertIsNotNone(eol_date)
+        self.assertEqual(eol_date, datetime(2024, 6, 30))
+    
+    @patch('src.os_eol.get_os_eol_date_from_api')
+    @patch('src.os_eol.get_os_eol_date_fallback')
+    def test_get_os_eol_date_api_fallback(self, mock_fallback, mock_api):
+        """API 失敗時にフォールバックが使用されるテスト"""
+        mock_api.return_value = None
+        mock_fallback.return_value = datetime(2027, 4, 30)
+        
+        eol_date = get_os_eol_date("Ubuntu", "22.04")
+        
+        self.assertIsNotNone(eol_date)
+        self.assertEqual(eol_date, datetime(2027, 4, 30))
+        mock_api.assert_called_once_with("Ubuntu", "22.04")
+        mock_fallback.assert_called_once_with("Ubuntu", "22.04")
+    
+    @patch('os.path.exists')
+    @patch('builtins.open', mock_open(read_data='NAME="Fedora Linux"\nVERSION_ID="40"\n'))
+    def test_get_linux_version_info_fedora(self, mock_exists):
+        """Fedora のバージョン情報取得テスト"""
+        mock_exists.return_value = True
+        
+        os_name, version = get_linux_version_info()
+        
+        self.assertEqual(os_name, "Fedora")
+        self.assertEqual(version, "40")
+    
+    @patch('os.path.exists')
+    @patch('builtins.open', mock_open(read_data='NAME="CentOS Linux"\nVERSION_ID="7"\n'))
+    def test_get_linux_version_info_centos(self, mock_exists):
+        """CentOS のバージョン情報取得テスト"""
+        mock_exists.return_value = True
+        
+        os_name, version = get_linux_version_info()
+        
+        self.assertEqual(os_name, "CentOS")
+        self.assertEqual(version, "7")
 
 
 if __name__ == "__main__":

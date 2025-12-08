@@ -3,8 +3,12 @@ import os
 import platform
 import re
 import subprocess
+import requests
 from datetime import datetime, timedelta
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def get_os_version_info() -> Tuple[str, str]:
@@ -107,14 +111,25 @@ def get_linux_version_info() -> Tuple[str, str]:
             name = os_info.get('NAME', '')
             version = os_info.get('VERSION_ID', '')
             
-            # Ubuntu の場合
+            # 主要なディストリビューションを識別
             if 'Ubuntu' in name:
                 return ("Ubuntu", version)
-            # Debian の場合
             elif 'Debian' in name:
                 return ("Debian", version)
-            # その他の Linux
+            elif 'Fedora' in name:
+                return ("Fedora", version)
+            elif 'CentOS' in name:
+                return ("CentOS", version)
+            elif 'Red Hat' in name or 'RHEL' in name:
+                return ("RHEL", version)
+            elif 'Rocky' in name:
+                return ("Rocky Linux", version)
+            elif 'AlmaLinux' in name:
+                return ("AlmaLinux", version)
+            elif 'openSUSE' in name:
+                return ("openSUSE", version)
             else:
+                # その他の Linux ディストリビューション
                 return (name, version)
         
         # /etc/os-release がない場合は platform を使用
@@ -123,9 +138,64 @@ def get_linux_version_info() -> Tuple[str, str]:
         return ("Linux", "Unknown")
 
 
-def get_os_eol_date(os_name: str, version: str) -> Optional[datetime]:
+def get_os_eol_date_from_api(os_name: str, version: str) -> Optional[datetime]:
     """
-    OS の EOL 日を取得する
+    endoflife.date API から OS の EOL 日を取得する
+    
+    Args:
+        os_name: OS 名
+        version: バージョン
+        
+    Returns:
+        Optional[datetime]: EOL 日 (取得できない場合は None)
+    """
+    # OS 名を endoflife.date の product 名にマッピング
+    product_mapping = {
+        "Windows": "windows",
+        "Ubuntu": "ubuntu",
+        "Debian": "debian",
+        "Fedora": "fedora",
+        "CentOS": "centos",
+        "RHEL": "rhel",
+        "Rocky Linux": "rocky-linux",
+        "AlmaLinux": "almalinux",
+        "openSUSE": "opensuse",
+    }
+    
+    product = product_mapping.get(os_name)
+    if product is None:
+        return None
+    
+    try:
+        # endoflife.date API を呼び出し
+        url = f"https://endoflife.date/api/{product}/{version}.json"
+        response = requests.get(url, timeout=5)
+        
+        if response.status_code == 200:
+            data = response.json()
+            eol_str = data.get('eol')
+            
+            if eol_str:
+                # eol は YYYY-MM-DD 形式または boolean
+                if isinstance(eol_str, str):
+                    try:
+                        return datetime.strptime(eol_str, '%Y-%m-%d')
+                    except ValueError:
+                        logger.warning(f"Failed to parse EOL date: {eol_str}")
+                        return None
+                elif isinstance(eol_str, bool) and not eol_str:
+                    # False の場合はまだ EOL していない（日付不明）
+                    return None
+        
+        return None
+    except Exception as e:
+        logger.debug(f"Failed to fetch EOL date from API for {os_name} {version}: {e}")
+        return None
+
+
+def get_os_eol_date_fallback(os_name: str, version: str) -> Optional[datetime]:
+    """
+    ハードコードされた EOL 日を取得する（フォールバック用）
     
     Args:
         os_name: OS 名
@@ -163,7 +233,47 @@ def get_os_eol_date(os_name: str, version: str) -> Optional[datetime]:
         }
         return debian_eol.get(version)
     
+    # Fedora の EOL 情報
+    elif os_name == "Fedora":
+        fedora_eol = {
+            "39": datetime(2024, 11, 12),  # Fedora 39
+            "40": datetime(2025, 5, 13),   # Fedora 40
+            "41": datetime(2025, 11, 11),  # Fedora 41
+        }
+        return fedora_eol.get(version)
+    
+    # CentOS の EOL 情報
+    elif os_name == "CentOS":
+        centos_eol = {
+            "7": datetime(2024, 6, 30),    # CentOS 7
+            "8": datetime(2021, 12, 31),   # CentOS 8 (既に EOL)
+        }
+        return centos_eol.get(version)
+    
     return None
+
+
+def get_os_eol_date(os_name: str, version: str) -> Optional[datetime]:
+    """
+    OS の EOL 日を取得する
+    
+    まず API から取得を試み、失敗した場合はハードコードされたデータにフォールバックする。
+    
+    Args:
+        os_name: OS 名
+        version: バージョン
+        
+    Returns:
+        Optional[datetime]: EOL 日 (不明な場合は None)
+    """
+    # まず API から取得を試みる
+    eol_date = get_os_eol_date_from_api(os_name, version)
+    
+    # API から取得できなかった場合はフォールバックデータを使用
+    if eol_date is None:
+        eol_date = get_os_eol_date_fallback(os_name, version)
+    
+    return eol_date
 
 
 def format_eol_info(eol_date: Optional[datetime]) -> Tuple[str, bool]:
