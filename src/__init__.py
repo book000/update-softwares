@@ -35,15 +35,59 @@ class GitHubIssue:
 
     return package_managers
 
+  def _get_checkmark(self, status, os_eol_critical=False):
+    """
+    ステータスとEOL状態からチェックマークを取得する
+    
+    Args:
+      status: ステータス ("success", "running", "failed")
+      os_eol_critical: EOL がクリティカル (90 日未満) かどうか
+      
+    Returns:
+      str: チェックマーク文字列
+    """
+    if os_eol_critical:
+      return "🔴"
+    return self.status_mapping.get(status, status)
+  
+  def _build_markdown_row(self, software_update):
+    """
+    ソフトウェア更新情報から Markdown テーブル行を構築する
+    
+    Args:
+      software_update: ソフトウェア更新情報の辞書
+      
+    Returns:
+      str: フォーマットされた Markdown テーブル行
+    """
+    markdown = software_update["markdown"]
+    
+    # OS EOL 列がある場合とない場合で処理を分ける
+    if "os_eol" in markdown:
+      return "| " + " | ".join([
+        markdown["checkmark"],
+        markdown["computer_name"],
+        markdown["operation_system"],
+        markdown["package_manager"],
+        markdown["upgraded"],
+        markdown["failed"],
+        markdown["os_eol"]
+      ]) + " |"
+    else:
+      return "| " + " | ".join([
+        markdown["checkmark"],
+        markdown["computer_name"],
+        markdown["operation_system"],
+        markdown["package_manager"],
+        markdown["upgraded"],
+        markdown["failed"]
+      ]) + " |"
+
   def update_software_update_row(self, computer_name, package_manager, status, upgraded, failed, os_eol=None, os_eol_critical=False):
     if status not in self.status_mapping:
       raise Exception(f"Invalid status: {status}. Valid values are {list(self.status_mapping.keys())}")
 
-    checkmark = self.status_mapping[status]
-    
-    # OS EOL がクリティカルな場合はチェックマークを 🔴 にする
-    if os_eol_critical:
-      checkmark = "🔴"
+    checkmark = self._get_checkmark(status, os_eol_critical)
 
     for software_update in self.software_updates:
       if software_update["computer_name"] == computer_name and software_update["package_manager"] == package_manager:
@@ -55,26 +99,7 @@ class GitHubIssue:
         if os_eol is not None:
           software_update["markdown"]["os_eol"] = os_eol
         
-        # OS EOL 列がある場合とない場合で処理を分ける
-        if "os_eol" in software_update["markdown"]:
-          software_update["markdown"]["raw"] = "| " + " | ".join([
-            software_update["markdown"]["checkmark"],
-            software_update["markdown"]["computer_name"],
-            software_update["markdown"]["operation_system"],
-            software_update["markdown"]["package_manager"],
-            software_update["markdown"]["upgraded"],
-            software_update["markdown"]["failed"],
-            software_update["markdown"]["os_eol"]
-          ]) + " |"
-        else:
-          software_update["markdown"]["raw"] = "| " + " | ".join([
-            software_update["markdown"]["checkmark"],
-            software_update["markdown"]["computer_name"],
-            software_update["markdown"]["operation_system"],
-            software_update["markdown"]["package_manager"],
-            software_update["markdown"]["upgraded"],
-            software_update["markdown"]["failed"]
-          ]) + " |"
+        software_update["markdown"]["raw"] = self._build_markdown_row(software_update)
 
         return True
 
@@ -98,11 +123,7 @@ class GitHubIssue:
         for software_update in current_software_updates:
           if software_update["computer_name"] == computer_name and software_update["package_manager"] == package_manager:
             # Update the status
-            checkmark = self.status_mapping.get(status, status)
-            
-            # OS EOL がクリティカルな場合はチェックマークを 🔴 にする
-            if os_eol_critical:
-              checkmark = "🔴"
+            checkmark = self._get_checkmark(status, os_eol_critical)
             
             software_update["markdown"]["checkmark"] = checkmark
             software_update["markdown"]["upgraded"] = upgraded
@@ -112,26 +133,7 @@ class GitHubIssue:
             if os_eol is not None:
               software_update["markdown"]["os_eol"] = os_eol
             
-            # OS EOL 列がある場合とない場合で処理を分ける
-            if "os_eol" in software_update["markdown"]:
-              software_update["markdown"]["raw"] = "| " + " | ".join([
-                software_update["markdown"]["checkmark"],
-                software_update["markdown"]["computer_name"],
-                software_update["markdown"]["operation_system"],
-                software_update["markdown"]["package_manager"],
-                software_update["markdown"]["upgraded"],
-                software_update["markdown"]["failed"],
-                software_update["markdown"]["os_eol"]
-              ]) + " |"
-            else:
-              software_update["markdown"]["raw"] = "| " + " | ".join([
-                software_update["markdown"]["checkmark"],
-                software_update["markdown"]["computer_name"],
-                software_update["markdown"]["operation_system"],
-                software_update["markdown"]["package_manager"],
-                software_update["markdown"]["upgraded"],
-                software_update["markdown"]["failed"]
-              ]) + " |"
+            software_update["markdown"]["raw"] = self._build_markdown_row(software_update)
             updated = True
             break
         

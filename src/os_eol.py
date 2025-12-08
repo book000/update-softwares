@@ -26,8 +26,15 @@ def get_windows_version_info() -> Tuple[str, str]:
     """
     Windows のバージョン情報を取得する
     
+    Windows Management Instrumentation Command-line (WMIC) を使用して、
+    システムの Caption と Version を取得し、Windows のバージョンを判定します。
+    
     Returns:
         Tuple[str, str]: ("Windows", "バージョン番号")
+        バージョン番号は "10" または "11"、不明な場合は "Unknown"
+    
+    Raises:
+        subprocess.TimeoutExpired: WMIC コマンドがタイムアウトした場合
     """
     try:
         # systeminfo コマンドで Windows バージョンを取得
@@ -73,8 +80,17 @@ def get_linux_version_info() -> Tuple[str, str]:
     """
     Linux のバージョン情報を取得する
     
+    /etc/os-release ファイルから NAME と VERSION_ID を読み取り、
+    ディストリビューション名とバージョンを返します。
+    ファイルが存在しない場合は platform モジュールを使用します。
+    
     Returns:
         Tuple[str, str]: (ディストリビューション名, バージョン)
+        Ubuntu の場合は ("Ubuntu", "22.04") のような形式
+        Debian の場合は ("Debian", "12") のような形式
+    
+    Raises:
+        IOError: /etc/os-release の読み取りに失敗した場合
     """
     try:
         # /etc/os-release から情報を取得
