@@ -1,12 +1,11 @@
 """OS End-of-Life (EOL) 情報を取得するモジュール"""
 import os
 import platform
-import re
 import subprocess
 import requests
 import time
-from datetime import datetime, timedelta
-from typing import Optional, Tuple, Dict
+from datetime import datetime
+from typing import Optional, Tuple
 import logging
 
 logger = logging.getLogger(__name__)
@@ -77,8 +76,10 @@ def get_windows_version_info() -> Tuple[str, str]:
                         if len(parts) >= 3:
                             display_version = parts[-1]
                             break
-        except Exception:
-            pass
+        except Exception as e:
+            # レジストリから DisplayVersion の取得に失敗した場合は無視します。
+            # これは一部の Windows 環境で DisplayVersion が存在しない場合があるためです。
+            logger.debug(f"DisplayVersion の取得に失敗: {e}")
         
         # Windows 10/11 の判定
         major_version = None
@@ -96,6 +97,7 @@ def get_windows_version_info() -> Tuple[str, str]:
                 else:
                     major_version = "10"
             except ValueError:
+                # build番号が整数に変換できない場合は、バージョン判定をスキップして Unknown を返すため、例外を無視します
                 pass
         
         # バージョン文字列を構築
@@ -243,8 +245,6 @@ def get_os_eol_date_from_api(os_name: str, version: str, max_retries: int = 3) -
                 continue
             logger.debug(f"Failed to fetch EOL date from API for {os_name} {version}: {e}")
             return None
-    
-    return None
 
 
 def get_os_eol_date(os_name: str, version: str) -> Optional[datetime]:

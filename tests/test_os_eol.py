@@ -2,10 +2,8 @@
 import unittest
 from unittest.mock import patch, mock_open, MagicMock
 from datetime import datetime, timedelta
-import os
 
 from src.os_eol import (
-    get_os_version_info,
     get_windows_version_info,
     get_linux_version_info,
     get_os_eol_date,
@@ -56,6 +54,69 @@ class TestOSEOL(unittest.TestCase):
         
         self.assertEqual(os_name, "Windows")
         self.assertEqual(version, "11")  # ビルド 22000 以上は Windows 11
+    
+    @patch('os.name', 'nt')
+    @patch('subprocess.run')
+    def test_get_windows_version_info_with_display_version_22h2(self, mock_run):
+        """Windows 10 22H2 の詳細バージョン取得テスト"""
+        # WMIC の結果
+        wmic_result = MagicMock()
+        wmic_result.stdout = "Caption=Microsoft Windows 10 Pro\nVersion=10.0.19045\n"
+        wmic_result.returncode = 0
+        
+        # レジストリの結果
+        reg_result = MagicMock()
+        reg_result.stdout = "DisplayVersion    REG_SZ    22H2\n"
+        reg_result.returncode = 0
+        
+        mock_run.side_effect = [wmic_result, reg_result]
+        
+        os_name, version = get_windows_version_info()
+        
+        self.assertEqual(os_name, "Windows")
+        self.assertEqual(version, "10-22H2")
+    
+    @patch('os.name', 'nt')
+    @patch('subprocess.run')
+    def test_get_windows_version_info_with_display_version_24h2(self, mock_run):
+        """Windows 11 24H2 の詳細バージョン取得テスト"""
+        # WMIC の結果
+        wmic_result = MagicMock()
+        wmic_result.stdout = "Caption=Microsoft Windows 11 Pro\nVersion=10.0.22631\n"
+        wmic_result.returncode = 0
+        
+        # レジストリの結果
+        reg_result = MagicMock()
+        reg_result.stdout = "DisplayVersion    REG_SZ    24H2\n"
+        reg_result.returncode = 0
+        
+        mock_run.side_effect = [wmic_result, reg_result]
+        
+        os_name, version = get_windows_version_info()
+        
+        self.assertEqual(os_name, "Windows")
+        self.assertEqual(version, "11-24H2")
+    
+    @patch('os.name', 'nt')
+    @patch('subprocess.run')
+    def test_get_windows_version_info_registry_error(self, mock_run):
+        """レジストリエラー時の Windows バージョン取得テスト"""
+        # WMIC の結果
+        wmic_result = MagicMock()
+        wmic_result.stdout = "Caption=Microsoft Windows 10 Pro\nVersion=10.0.19045\n"
+        wmic_result.returncode = 0
+        
+        # レジストリエラー
+        reg_result = MagicMock()
+        reg_result.returncode = 1
+        reg_result.stdout = ""
+        
+        mock_run.side_effect = [wmic_result, reg_result]
+        
+        os_name, version = get_windows_version_info()
+        
+        self.assertEqual(os_name, "Windows")
+        self.assertEqual(version, "10")  # DisplayVersion なしでメジャーバージョンのみ
     
     @patch('os.path.exists')
     @patch('builtins.open', mock_open(read_data='NAME="Ubuntu"\nVERSION_ID="22.04"\n'))
