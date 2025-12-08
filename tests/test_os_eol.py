@@ -10,7 +10,6 @@ from src.os_eol import (
     get_linux_version_info,
     get_os_eol_date,
     get_os_eol_date_from_api,
-    get_os_eol_date_fallback,
     format_eol_info,
     get_os_eol_info
 )
@@ -81,29 +80,53 @@ class TestOSEOL(unittest.TestCase):
         self.assertIn("Debian", os_name)
         self.assertEqual(version, "12")
     
-    def test_get_os_eol_date_windows_10(self):
-        """Windows 10 の EOL 日取得テスト"""
+    @patch('src.os_eol.requests.get')
+    def test_get_os_eol_date_windows_10(self, mock_get):
+        """Windows 10 の EOL 日取得テスト (API モック)"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {'eol': '2025-10-14'}
+        mock_get.return_value = mock_response
+        
         eol_date = get_os_eol_date("Windows", "10")
         
         self.assertIsNotNone(eol_date)
         self.assertEqual(eol_date, datetime(2025, 10, 14))
     
-    def test_get_os_eol_date_windows_11(self):
-        """Windows 11 の EOL 日取得テスト"""
+    @patch('src.os_eol.requests.get')
+    def test_get_os_eol_date_windows_11(self, mock_get):
+        """Windows 11 の EOL 日取得テスト (API モック)"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {'eol': '2031-10-14'}
+        mock_get.return_value = mock_response
+        
         eol_date = get_os_eol_date("Windows", "11")
         
         self.assertIsNotNone(eol_date)
         self.assertEqual(eol_date, datetime(2031, 10, 14))
     
-    def test_get_os_eol_date_ubuntu_2204(self):
-        """Ubuntu 22.04 の EOL 日取得テスト"""
+    @patch('src.os_eol.requests.get')
+    def test_get_os_eol_date_ubuntu_2204(self, mock_get):
+        """Ubuntu 22.04 の EOL 日取得テスト (API モック)"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {'eol': '2027-04-30'}
+        mock_get.return_value = mock_response
+        
         eol_date = get_os_eol_date("Ubuntu", "22.04")
         
         self.assertIsNotNone(eol_date)
         self.assertEqual(eol_date, datetime(2027, 4, 30))
     
-    def test_get_os_eol_date_debian_12(self):
-        """Debian 12 の EOL 日取得テスト"""
+    @patch('src.os_eol.requests.get')
+    def test_get_os_eol_date_debian_12(self, mock_get):
+        """Debian 12 の EOL 日取得テスト (API モック)"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {'eol': '2028-06-30'}
+        mock_get.return_value = mock_response
+        
         eol_date = get_os_eol_date("Debian", "12")
         
         self.assertIsNotNone(eol_date)
@@ -210,33 +233,25 @@ class TestOSEOL(unittest.TestCase):
         
         self.assertIsNone(eol_date)
     
-    def test_get_os_eol_date_fallback_fedora(self):
-        """Fedora のフォールバック EOL 日取得テスト"""
-        eol_date = get_os_eol_date_fallback("Fedora", "40")
+    @patch('src.os_eol.requests.get')
+    def test_get_os_eol_date_from_api_retry(self, mock_get):
+        """API リトライのテスト"""
+        # 最初の 2 回は失敗、3 回目は成功
+        mock_response_fail = MagicMock()
+        mock_response_fail.status_code = 500
         
-        self.assertIsNotNone(eol_date)
-        self.assertEqual(eol_date, datetime(2025, 5, 13))
-    
-    def test_get_os_eol_date_fallback_centos(self):
-        """CentOS のフォールバック EOL 日取得テスト"""
-        eol_date = get_os_eol_date_fallback("CentOS", "7")
+        mock_response_success = MagicMock()
+        mock_response_success.status_code = 200
+        mock_response_success.json.return_value = {'eol': '2027-04-30'}
         
-        self.assertIsNotNone(eol_date)
-        self.assertEqual(eol_date, datetime(2024, 6, 30))
-    
-    @patch('src.os_eol.get_os_eol_date_from_api')
-    @patch('src.os_eol.get_os_eol_date_fallback')
-    def test_get_os_eol_date_api_fallback(self, mock_fallback, mock_api):
-        """API 失敗時にフォールバックが使用されるテスト"""
-        mock_api.return_value = None
-        mock_fallback.return_value = datetime(2027, 4, 30)
+        mock_get.side_effect = [mock_response_fail, mock_response_fail, mock_response_success]
         
-        eol_date = get_os_eol_date("Ubuntu", "22.04")
+        with patch('time.sleep'):  # sleep をスキップ
+            eol_date = get_os_eol_date_from_api("Ubuntu", "22.04")
         
         self.assertIsNotNone(eol_date)
         self.assertEqual(eol_date, datetime(2027, 4, 30))
-        mock_api.assert_called_once_with("Ubuntu", "22.04")
-        mock_fallback.assert_called_once_with("Ubuntu", "22.04")
+        self.assertEqual(mock_get.call_count, 3)
     
     @patch('os.path.exists')
     @patch('builtins.open', mock_open(read_data='NAME="Fedora Linux"\nVERSION_ID="40"\n'))

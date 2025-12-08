@@ -4,6 +4,7 @@ import platform
 import re
 import subprocess
 import requests
+import time
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, Dict
 import logging
@@ -32,16 +33,18 @@ def get_windows_version_info() -> Tuple[str, str]:
     
     Windows Management Instrumentation Command-line (WMIC) を使用して、
     システムの Caption と Version を取得し、Windows のバージョンを判定します。
+    詳細バージョン (例: 21H2, 22H2, 23H2, 24H2, 25H2) の取得を試みます。
     
     Returns:
         Tuple[str, str]: ("Windows", "バージョン番号")
-        バージョン番号は "10" または "11"、不明な場合は "Unknown"
+        バージョン番号は "10-22H2" や "11-24H2" のような形式
+        詳細バージョンが不明な場合は "10" または "11"
     
     Raises:
         subprocess.TimeoutExpired: WMIC コマンドがタイムアウトした場合
     """
     try:
-        # systeminfo コマンドで Windows バージョンを取得
+        # WMIC で Windows バージョン情報を取得
         result = subprocess.run(
             ['wmic', 'os', 'get', 'Caption,Version', '/value'],
             capture_output=True,
@@ -58,24 +61,50 @@ def get_windows_version_info() -> Tuple[str, str]:
             elif 'Version=' in line:
                 version = line.split('=', 1)[1].strip()
         
+        # レジストリから DisplayVersion (21H2, 22H2 など) を取得
+        display_version = None
+        try:
+            reg_result = subprocess.run(
+                ['reg', 'query', 'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion', '/v', 'DisplayVersion'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if reg_result.returncode == 0:
+                for line in reg_result.stdout.split('\n'):
+                    if 'DisplayVersion' in line:
+                        parts = line.strip().split()
+                        if len(parts) >= 3:
+                            display_version = parts[-1]
+                            break
+        except Exception:
+            pass
+        
         # Windows 10/11 の判定
+        major_version = None
         if "Windows 10" in caption:
-            return ("Windows", "10")
+            major_version = "10"
         elif "Windows 11" in caption:
-            return ("Windows", "11")
+            major_version = "11"
         elif version:
             # ビルド番号から判定
             build = version.split('.')[-1] if '.' in version else version
             try:
                 build_num = int(build)
                 if build_num >= 22000:
-                    return ("Windows", "11")
+                    major_version = "11"
                 else:
-                    return ("Windows", "10")
+                    major_version = "10"
             except ValueError:
                 pass
         
-        return ("Windows", "Unknown")
+        # バージョン文字列を構築
+        if major_version and display_version:
+            return ("Windows", f"{major_version}-{display_version}")
+        elif major_version:
+            return ("Windows", major_version)
+        else:
+            return ("Windows", "Unknown")
     except Exception:
         return ("Windows", "Unknown")
 
@@ -138,13 +167,14 @@ def get_linux_version_info() -> Tuple[str, str]:
         return ("Linux", "Unknown")
 
 
-def get_os_eol_date_from_api(os_name: str, version: str) -> Optional[datetime]:
+def get_os_eol_date_from_api(os_name: str, version: str, max_retries: int = 3) -> Optional[datetime]:
     """
     endoflife.date API から OS の EOL 日を取得する
     
     Args:
         os_name: OS 名
         version: バージョン
+        max_retries: 最大リトライ回数（デフォルト: 3）
         
     Returns:
         Optional[datetime]: EOL 日 (取得できない場合は None)
@@ -166,89 +196,53 @@ def get_os_eol_date_from_api(os_name: str, version: str) -> Optional[datetime]:
     if product is None:
         return None
     
-    try:
-        # endoflife.date API を呼び出し
-        url = f"https://endoflife.date/api/{product}/{version}.json"
-        response = requests.get(url, timeout=5)
-        
-        if response.status_code == 200:
-            data = response.json()
-            eol_str = data.get('eol')
+    # リトライロジック
+    for retry in range(max_retries):
+        try:
+            # endoflife.date API を呼び出し
+            url = f"https://endoflife.date/api/{product}/{version}.json"
+            response = requests.get(url, timeout=30)
             
-            if eol_str:
-                # eol は YYYY-MM-DD 形式または boolean
-                if isinstance(eol_str, str):
-                    try:
-                        return datetime.strptime(eol_str, '%Y-%m-%d')
-                    except ValueError:
-                        logger.warning(f"Failed to parse EOL date: {eol_str}")
+            if response.status_code == 200:
+                data = response.json()
+                eol_str = data.get('eol')
+                
+                if eol_str:
+                    # eol は YYYY-MM-DD 形式または boolean
+                    if isinstance(eol_str, str):
+                        try:
+                            return datetime.strptime(eol_str, '%Y-%m-%d')
+                        except ValueError:
+                            logger.warning(f"Failed to parse EOL date: {eol_str}")
+                            return None
+                    elif isinstance(eol_str, bool) and not eol_str:
+                        # False の場合はまだ EOL していない（日付不明）
                         return None
-                elif isinstance(eol_str, bool) and not eol_str:
-                    # False の場合はまだ EOL していない（日付不明）
-                    return None
-        
-        return None
-    except Exception as e:
-        logger.debug(f"Failed to fetch EOL date from API for {os_name} {version}: {e}")
-        return None
-
-
-def get_os_eol_date_fallback(os_name: str, version: str) -> Optional[datetime]:
-    """
-    ハードコードされた EOL 日を取得する（フォールバック用）
-    
-    Args:
-        os_name: OS 名
-        version: バージョン
-        
-    Returns:
-        Optional[datetime]: EOL 日 (不明な場合は None)
-    """
-    # Windows の EOL 情報
-    if os_name == "Windows":
-        windows_eol = {
-            "10": datetime(2025, 10, 14),  # Windows 10 Home/Pro
-            "11": datetime(2031, 10, 14),  # Windows 11 (最初のバージョン)
-        }
-        return windows_eol.get(version)
-    
-    # Ubuntu の EOL 情報
-    elif os_name == "Ubuntu":
-        ubuntu_eol = {
-            "20.04": datetime(2025, 4, 30),   # Ubuntu 20.04 LTS
-            "22.04": datetime(2027, 4, 30),   # Ubuntu 22.04 LTS
-            "23.04": datetime(2024, 1, 25),   # Ubuntu 23.04
-            "23.10": datetime(2024, 7, 31),   # Ubuntu 23.10
-            "24.04": datetime(2029, 4, 30),   # Ubuntu 24.04 LTS
-            "24.10": datetime(2025, 7, 31),   # Ubuntu 24.10
-        }
-        return ubuntu_eol.get(version)
-    
-    # Debian の EOL 情報
-    elif os_name == "Debian":
-        debian_eol = {
-            "10": datetime(2024, 6, 30),   # Debian 10 (Buster)
-            "11": datetime(2026, 8, 31),   # Debian 11 (Bullseye)
-            "12": datetime(2028, 6, 30),   # Debian 12 (Bookworm)
-        }
-        return debian_eol.get(version)
-    
-    # Fedora の EOL 情報
-    elif os_name == "Fedora":
-        fedora_eol = {
-            "39": datetime(2024, 11, 12),  # Fedora 39
-            "40": datetime(2025, 5, 13),   # Fedora 40
-            "41": datetime(2025, 11, 11),  # Fedora 41
-        }
-        return fedora_eol.get(version)
-    
-    # CentOS の EOL 情報
-    elif os_name == "CentOS":
-        centos_eol = {
-            "7": datetime(2024, 6, 30),    # CentOS 7
-            "8": datetime(2021, 12, 31),   # CentOS 8 (既に EOL)
-        }
-        return centos_eol.get(version)
+            elif response.status_code == 404:
+                # 404 は API にデータがないことを示すのでリトライ不要
+                return None
+            
+            # その他のステータスコードはリトライする
+            if retry < max_retries - 1:
+                logger.debug(f"API request failed with status {response.status_code}, retrying... (attempt {retry + 1}/{max_retries})")
+                time.sleep(1 * (retry + 1))  # 指数バックオフ
+                continue
+            
+            return None
+        except requests.Timeout:
+            if retry < max_retries - 1:
+                logger.debug(f"API request timed out, retrying... (attempt {retry + 1}/{max_retries})")
+                time.sleep(1 * (retry + 1))
+                continue
+            logger.debug(f"Failed to fetch EOL date from API for {os_name} {version}: Timeout after {max_retries} retries")
+            return None
+        except Exception as e:
+            if retry < max_retries - 1:
+                logger.debug(f"API request failed with error: {e}, retrying... (attempt {retry + 1}/{max_retries})")
+                time.sleep(1 * (retry + 1))
+                continue
+            logger.debug(f"Failed to fetch EOL date from API for {os_name} {version}: {e}")
+            return None
     
     return None
 
@@ -257,23 +251,19 @@ def get_os_eol_date(os_name: str, version: str) -> Optional[datetime]:
     """
     OS の EOL 日を取得する
     
-    まず API から取得を試み、失敗した場合はハードコードされたデータにフォールバックする。
+    endoflife.date API から EOL 情報を取得します。
+    API から取得できない場合は None を返します。
     
     Args:
         os_name: OS 名
         version: バージョン
         
     Returns:
-        Optional[datetime]: EOL 日 (不明な場合は None)
+        Optional[datetime]: EOL 日 (API から取得できない場合は None)
     """
-    # まず API から取得を試みる
-    eol_date = get_os_eol_date_from_api(os_name, version)
-    
-    # API から取得できなかった場合はフォールバックデータを使用
-    if eol_date is None:
-        eol_date = get_os_eol_date_fallback(os_name, version)
-    
-    return eol_date
+    # API から取得を試みる
+    return get_os_eol_date_from_api(os_name, version)
+
 
 
 def format_eol_info(eol_date: Optional[datetime]) -> Tuple[str, bool]:
