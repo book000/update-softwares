@@ -4,6 +4,7 @@ import time
 import apt
 import logging
 from .. import GitHubIssue # required by tests
+from ..os_eol import get_os_eol_info
 
 from .. import is_root
 
@@ -82,6 +83,9 @@ def run(github_issue, hostname):
         return
 
     try:
+        # OS EOL 情報を取得
+        os_eol_info, is_critical = get_os_eol_info()
+        
         logger.info("Starting apt update and full upgrade...")
         # Set initial status to running
         github_issue.atomic_update_with_retry(
@@ -90,6 +94,7 @@ def run(github_issue, hostname):
             upgraded="",
             failed="",
             status="running",
+            os_eol=os_eol_info,
         )
 
         logger.info("Updating package list...")
@@ -107,6 +112,7 @@ def run(github_issue, hostname):
                 upgraded="0",
                 failed="0",
                 status="success",
+                os_eol=os_eol_info,
             )
             return
 
@@ -119,6 +125,7 @@ def run(github_issue, hostname):
             upgraded=str(len(to_upgrade)),
             failed="",
             status="running",
+            os_eol=os_eol_info,
         )
 
         logger.info("Upgrading packages...")
@@ -141,6 +148,7 @@ def run(github_issue, hostname):
             upgraded=str(diff_to_upgrade),
             failed=str(fail_count),
             status=final_status,
+            os_eol=os_eol_info,
         )
 
         logger.info("Upgrade complete.")
@@ -152,6 +160,12 @@ def run(github_issue, hostname):
         os.system("shutdown -r 0")
     except Exception as e:
         logger.error(f"An error occurred during the upgrade: {e}")
+        # OS EOL 情報を取得 (エラー時も含める)
+        try:
+            os_eol_info, _ = get_os_eol_info()
+        except Exception:
+            os_eol_info = "不明"
+        
         # Set error status atomically
         github_issue.atomic_update_with_retry(
             computer_name=hostname,
@@ -159,4 +173,5 @@ def run(github_issue, hostname):
             upgraded="",
             failed="1",
             status="failed",
+            os_eol=os_eol_info,
         )

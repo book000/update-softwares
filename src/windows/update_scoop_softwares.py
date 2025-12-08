@@ -9,6 +9,8 @@ from venv import logger
 import psutil
 import traceback
 
+from ..os_eol import get_os_eol_info
+
 def update_scoop_repos():
   # Scoop update を実行し、リポジトリを更新する
   # 失敗した場合、5回リトライする
@@ -222,6 +224,9 @@ def start_app(app_name, app_processes):
 
 def run(github_issue, hostname) -> None:
     try:
+        # OS EOL 情報を取得
+        os_eol_info, is_critical = get_os_eol_info()
+        
         # Set initial status to running
         github_issue.atomic_update_with_retry(
             computer_name=hostname,
@@ -229,6 +234,7 @@ def run(github_issue, hostname) -> None:
             upgraded="",
             failed="",
             status="running",
+            os_eol=os_eol_info,
         )
 
         update_scoop_repos()
@@ -250,6 +256,7 @@ def run(github_issue, hostname) -> None:
             upgraded=str(len(not_running_apps)),
             failed="",
             status="running",
+            os_eol=os_eol_info,
         )
 
         print("Updating not running applications...")
@@ -280,6 +287,7 @@ def run(github_issue, hostname) -> None:
             upgraded=str(success_count),
             failed=str(failed_count),
             status=status,
+            os_eol=os_eol_info,
         )
 
         upgraded_status_results = get_scoop_status()
@@ -290,6 +298,13 @@ def run(github_issue, hostname) -> None:
     except Exception as e:
         logger.error(f"An error occurred during the upgrade: {e}")
         logger.error(traceback.format_exc())
+        
+        # OS EOL 情報を取得 (エラー時も含める)
+        try:
+            os_eol_info, _ = get_os_eol_info()
+        except Exception:
+            os_eol_info = "不明"
+        
         # Set error status atomically
         github_issue.atomic_update_with_retry(
             computer_name=hostname,
@@ -297,4 +312,5 @@ def run(github_issue, hostname) -> None:
             upgraded="",
             failed="",
             status="failed",
+            os_eol=os_eol_info,
         )
