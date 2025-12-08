@@ -95,6 +95,7 @@ def run(github_issue, hostname):
             failed="",
             status="running",
             os_eol=os_eol_info,
+            os_eol_critical=is_critical,
         )
 
         logger.info("Updating package list...")
@@ -113,6 +114,7 @@ def run(github_issue, hostname):
                 failed="0",
                 status="success",
                 os_eol=os_eol_info,
+                os_eol_critical=is_critical,
             )
             return
 
@@ -126,6 +128,7 @@ def run(github_issue, hostname):
             failed="",
             status="running",
             os_eol=os_eol_info,
+            os_eol_critical=is_critical,
         )
 
         logger.info("Upgrading packages...")
@@ -149,6 +152,7 @@ def run(github_issue, hostname):
             failed=str(fail_count),
             status=final_status,
             os_eol=os_eol_info,
+            os_eol_critical=is_critical,
         )
 
         logger.info("Upgrade complete.")
@@ -162,9 +166,10 @@ def run(github_issue, hostname):
         logger.error(f"An error occurred during the upgrade: {e}")
         # OS EOL 情報を取得 (エラー時も含める)
         try:
-            os_eol_info, _ = get_os_eol_info()
+            os_eol_info, is_critical = get_os_eol_info()
         except Exception:
             os_eol_info = "不明"
+            is_critical = False
         
         # Set error status atomically
         github_issue.atomic_update_with_retry(
@@ -174,4 +179,5 @@ def run(github_issue, hostname):
             failed="1",
             status="failed",
             os_eol=os_eol_info,
+            os_eol_critical=is_critical,
         )

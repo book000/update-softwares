@@ -235,6 +235,7 @@ def run(github_issue, hostname) -> None:
             failed="",
             status="running",
             os_eol=os_eol_info,
+            os_eol_critical=is_critical,
         )
 
         update_scoop_repos()
@@ -257,6 +258,7 @@ def run(github_issue, hostname) -> None:
             failed="",
             status="running",
             os_eol=os_eol_info,
+            os_eol_critical=is_critical,
         )
 
         print("Updating not running applications...")
@@ -288,6 +290,7 @@ def run(github_issue, hostname) -> None:
             failed=str(failed_count),
             status=status,
             os_eol=os_eol_info,
+            os_eol_critical=is_critical,
         )
 
         upgraded_status_results = get_scoop_status()
@@ -301,9 +304,10 @@ def run(github_issue, hostname) -> None:
         
         # OS EOL 情報を取得 (エラー時も含める)
         try:
-            os_eol_info, _ = get_os_eol_info()
+            os_eol_info, is_critical = get_os_eol_info()
         except Exception:
             os_eol_info = "不明"
+            is_critical = False
         
         # Set error status atomically
         github_issue.atomic_update_with_retry(
@@ -313,4 +317,5 @@ def run(github_issue, hostname) -> None:
             failed="",
             status="failed",
             os_eol=os_eol_info,
+            os_eol_critical=is_critical,
         )

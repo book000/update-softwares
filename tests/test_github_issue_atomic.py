@@ -259,7 +259,8 @@ class TestGitHubIssueAtomic(unittest.TestCase):
             status="success",
             upgraded="5",
             failed="0",
-            os_eol="2027/04/30 (800 日後)"
+            os_eol="2027/04/30 (800 日後)",
+            os_eol_critical=False
         )
         
         self.assertTrue(result)
@@ -272,6 +273,47 @@ class TestGitHubIssueAtomic(unittest.TestCase):
         self.assertIn("5", updated_body)   # Upgraded count
         self.assertIn("0", updated_body)   # Failed count
         self.assertIn("2027/04/30 (800 日後)", updated_body)  # OS EOL info
+    
+    @patch('src.requests.patch')
+    @patch('src.requests.get')
+    def test_atomic_update_with_critical_os_eol(self, mock_get, mock_patch):
+        """Test atomic update with critical OS EOL (less than 90 days)."""
+        # Setup initial issue body with OS EOL column
+        initial_body = "| ⏳ | Computer1 | Windows | scoop | 0 | 0 | 不明 | <!-- update-softwares#Computer1#scoop -->"
+        
+        mock_get_response = MagicMock()
+        mock_get_response.status_code = 200
+        mock_get_response.json.return_value = {"body": initial_body}
+        mock_get.return_value = mock_get_response
+        
+        # Setup successful patch response
+        mock_patch_response = MagicMock()
+        mock_patch_response.status_code = 200
+        mock_patch.return_value = mock_patch_response
+        
+        github_issue = GitHubIssue(self.repo_name, self.issue_number, self.github_token)
+        
+        # Test atomic update with critical OS EOL (checkmark should be 🔴)
+        result = github_issue.atomic_update_with_retry(
+            computer_name="Computer1",
+            package_manager="scoop",
+            status="success",
+            upgraded="13",
+            failed="0",
+            os_eol="**2025/12/31 (20 日後)**",
+            os_eol_critical=True
+        )
+        
+        self.assertTrue(result)
+        mock_patch.assert_called_once()
+        
+        # Verify the patch call contains 🔴 checkmark for critical EOL
+        patch_call_args = mock_patch.call_args
+        updated_body = patch_call_args[1]['json']['body']
+        self.assertIn("🔴", updated_body)  # Critical checkmark
+        self.assertIn("13", updated_body)  # Upgraded count
+        self.assertIn("0", updated_body)   # Failed count
+        self.assertIn("**2025/12/31 (20 日後)**", updated_body)  # Critical OS EOL info
 
 if __name__ == "__main__":
     unittest.main()

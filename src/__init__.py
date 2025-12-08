@@ -35,11 +35,15 @@ class GitHubIssue:
 
     return package_managers
 
-  def update_software_update_row(self, computer_name, package_manager, status, upgraded, failed, os_eol=None):
+  def update_software_update_row(self, computer_name, package_manager, status, upgraded, failed, os_eol=None, os_eol_critical=False):
     if status not in self.status_mapping:
       raise Exception(f"Invalid status: {status}. Valid values are {list(self.status_mapping.keys())}")
 
     checkmark = self.status_mapping[status]
+    
+    # OS EOL がクリティカルな場合はチェックマークを 🔴 にする
+    if os_eol_critical:
+      checkmark = "🔴"
 
     for software_update in self.software_updates:
       if software_update["computer_name"] == computer_name and software_update["package_manager"] == package_manager:
@@ -76,7 +80,7 @@ class GitHubIssue:
 
     return False
 
-  def atomic_update_with_retry(self, computer_name, package_manager, status, upgraded, failed, os_eol=None, max_retries=3):
+  def atomic_update_with_retry(self, computer_name, package_manager, status, upgraded, failed, os_eol=None, os_eol_critical=False, max_retries=3):
     """
     Atomically update the issue body with retry logic to handle concurrent updates.
     This method combines update processing and GitHub Issue body reflection into a single operation.
@@ -95,6 +99,11 @@ class GitHubIssue:
           if software_update["computer_name"] == computer_name and software_update["package_manager"] == package_manager:
             # Update the status
             checkmark = self.status_mapping.get(status, status)
+            
+            # OS EOL がクリティカルな場合はチェックマークを 🔴 にする
+            if os_eol_critical:
+              checkmark = "🔴"
+            
             software_update["markdown"]["checkmark"] = checkmark
             software_update["markdown"]["upgraded"] = upgraded
             software_update["markdown"]["failed"] = failed
