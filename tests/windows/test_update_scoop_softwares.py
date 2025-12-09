@@ -12,6 +12,7 @@ from src.windows.update_scoop_softwares import (
     update_scoop_apps,
     stop_app,
     start_app,
+    get_app_startup_command,
 )
 
 
@@ -153,7 +154,151 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
             exe.write_text('')
             start_app('app1', [{'name': 'app.exe'}])
             # subprocess.Popen should be called with the exe path
-            mock_popen.assert_called_with([exe], stdout=unittest.mock.ANY, stderr=unittest.mock.ANY)
+            mock_popen.assert_called_with([str(exe)], stdout=unittest.mock.ANY, stderr=unittest.mock.ANY)
+
+    @patch('src.windows.update_scoop_softwares.os.getenv')
+    def test_get_app_startup_command_no_manifest(self, mock_getenv):
+        """manifest.json が存在しない場合のテスト"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_getenv.return_value = tmpdir
+            exe_path, args = get_app_startup_command('app1', 'test.exe')
+            self.assertIsNone(exe_path)
+            self.assertIsNone(args)
+
+    @patch('src.windows.update_scoop_softwares.os.getenv')
+    def test_get_app_startup_command_no_shortcuts(self, mock_getenv):
+        """shortcuts 定義がない場合のテスト"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_getenv.return_value = tmpdir
+            manifest_path = Path(tmpdir) / 'apps' / 'app1' / 'current'
+            manifest_path.mkdir(parents=True)
+            manifest_file = manifest_path / 'manifest.json'
+            manifest_file.write_text('{"version": "1.0"}')
+            
+            exe_path, args = get_app_startup_command('app1', 'test.exe')
+            self.assertIsNone(exe_path)
+            self.assertIsNone(args)
+
+    @patch('src.windows.update_scoop_softwares.os.getenv')
+    def test_get_app_startup_command_with_arguments(self, mock_getenv):
+        """引数付きの shortcuts 定義があるケースのテスト"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_getenv.return_value = tmpdir
+            manifest_path = Path(tmpdir) / 'apps' / 'app1' / 'current'
+            manifest_path.mkdir(parents=True)
+            manifest_file = manifest_path / 'manifest.json'
+            
+            # shortcuts 定義を作成（引数付き）
+            import json
+            manifest_data = {
+                "version": "1.0",
+                "shortcuts": [
+                    ["bin\\test.exe", "Test App", "--arg1", "--arg2"]
+                ]
+            }
+            with open(manifest_file, 'w', encoding='utf-8') as f:
+                json.dump(manifest_data, f)
+            
+            exe_path, args = get_app_startup_command('app1', 'test.exe')
+            expected_path = Path(tmpdir) / 'apps' / 'app1' / 'current' / 'bin' / 'test.exe'
+            self.assertEqual(exe_path, expected_path)
+            self.assertEqual(args, ['--arg1', '--arg2'])
+
+    @patch('src.windows.update_scoop_softwares.os.getenv')
+    def test_get_app_startup_command_without_arguments(self, mock_getenv):
+        """引数なしの shortcuts 定義があるケースのテスト"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_getenv.return_value = tmpdir
+            manifest_path = Path(tmpdir) / 'apps' / 'app1' / 'current'
+            manifest_path.mkdir(parents=True)
+            manifest_file = manifest_path / 'manifest.json'
+            
+            # shortcuts 定義を作成（引数なし）
+            import json
+            manifest_data = {
+                "version": "1.0",
+                "shortcuts": [
+                    ["test.exe", "Test App"]
+                ]
+            }
+            with open(manifest_file, 'w', encoding='utf-8') as f:
+                json.dump(manifest_data, f)
+            
+            exe_path, args = get_app_startup_command('app1', 'test.exe')
+            expected_path = Path(tmpdir) / 'apps' / 'app1' / 'current' / 'test.exe'
+            self.assertEqual(exe_path, expected_path)
+            self.assertEqual(args, [])
+
+    @patch('src.windows.update_scoop_softwares.os.getenv')
+    def test_get_app_startup_command_multiple_shortcuts(self, mock_getenv):
+        """複数の shortcuts がある場合のテスト"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_getenv.return_value = tmpdir
+            manifest_path = Path(tmpdir) / 'apps' / 'app1' / 'current'
+            manifest_path.mkdir(parents=True)
+            manifest_file = manifest_path / 'manifest.json'
+            
+            # 複数の shortcuts 定義を作成
+            import json
+            manifest_data = {
+                "version": "1.0",
+                "shortcuts": [
+                    ["bin\\other.exe", "Other App"],
+                    ["bin\\test.exe", "Test App", "--config", "settings.ini"],
+                    ["bin\\another.exe", "Another App"]
+                ]
+            }
+            with open(manifest_file, 'w', encoding='utf-8') as f:
+                json.dump(manifest_data, f)
+            
+            # test.exe を検索
+            exe_path, args = get_app_startup_command('app1', 'test.exe')
+            expected_path = Path(tmpdir) / 'apps' / 'app1' / 'current' / 'bin' / 'test.exe'
+            self.assertEqual(exe_path, expected_path)
+            self.assertEqual(args, ['--config', 'settings.ini'])
+
+    @patch('src.windows.update_scoop_softwares.get_app_startup_command')
+    @patch('src.windows.update_scoop_softwares.os.getenv')
+    @patch('src.windows.update_scoop_softwares.os.path.exists', return_value=True)
+    @patch('src.windows.update_scoop_softwares.subprocess.Popen')
+    def test_start_app_with_manifest_arguments(self, mock_popen, mock_exists, mock_getenv, mock_get_command):
+        """manifest から引数を取得して起動するテスト"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_getenv.return_value = tmpdir
+            app_path = Path(tmpdir) / 'apps' / 'app1' / 'current'
+            app_path.mkdir(parents=True)
+            exe = app_path / 'bin' / 'app.exe'
+            exe.parent.mkdir(parents=True)
+            exe.write_text('')
+            
+            # manifest から引数を返すように設定
+            mock_get_command.return_value = (exe, ['--arg1', '--arg2'])
+            
+            start_app('app1', [{'name': 'app.exe'}])
+            
+            # 引数付きで起動されることを確認
+            mock_popen.assert_called_with([str(exe), '--arg1', '--arg2'], stdout=unittest.mock.ANY, stderr=unittest.mock.ANY)
+
+    @patch('src.windows.update_scoop_softwares.get_app_startup_command')
+    @patch('src.windows.update_scoop_softwares.os.getenv')
+    @patch('src.windows.update_scoop_softwares.os.path.exists', return_value=True)
+    @patch('src.windows.update_scoop_softwares.subprocess.Popen')
+    def test_start_app_fallback_without_manifest(self, mock_popen, mock_exists, mock_getenv, mock_get_command):
+        """manifest がない場合は従来の方法で起動するテスト"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_getenv.return_value = tmpdir
+            app_path = Path(tmpdir) / 'apps' / 'app1' / 'current'
+            app_path.mkdir(parents=True)
+            exe = app_path / 'app.exe'
+            exe.write_text('')
+            
+            # manifest が見つからない場合
+            mock_get_command.return_value = (None, None)
+            
+            start_app('app1', [{'name': 'app.exe'}])
+            
+            # 引数なしで起動されることを確認
+            mock_popen.assert_called_with([str(exe)], stdout=unittest.mock.ANY, stderr=unittest.mock.ANY)
 
 
 if __name__ == '__main__':
