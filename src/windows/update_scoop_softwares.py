@@ -199,9 +199,10 @@ def stop_app(app_processes):
 
 def start_app(app_name, app_processes):
     # アプリケーションを起動する
-    # current の exe パスを取得し、ファイルが存在する場合は起動する
+    # Scoop の shims を優先的に使用し、見つからない場合は current の exe を直接実行する
     scoop_path = Path(os.getenv("SCOOP"))
     apps_path = scoop_path / "apps"
+    shims_path = scoop_path / "shims"
     app_dir = apps_path / app_name
     current_dir = app_dir / "current"
     if not current_dir.exists():
@@ -209,14 +210,32 @@ def start_app(app_name, app_processes):
         return
 
     for process in app_processes:
-        # exe_path = process["exe"]
-        exe_path = current_dir / process["name"]
+        process_name = process["name"]
+        # プロセス名から拡張子を除去してベース名を取得
+        base_name = Path(process_name).stem
+        
+        # 1. まず shims ディレクトリから実行ファイルを探す（引数が設定されている場合に対応）
+        shim_exe_path = shims_path / f"{base_name}.exe"
+        shim_cmd_path = shims_path / f"{base_name}.cmd"
+        shim_ps1_path = shims_path / f"{base_name}.ps1"
+        
+        # shims に実行可能ファイルが存在する場合は、それを使用
+        if shim_exe_path.exists():
+            exe_path = shim_exe_path
+        elif shim_cmd_path.exists():
+            exe_path = shim_cmd_path
+        elif shim_ps1_path.exists():
+            exe_path = shim_ps1_path
+        else:
+            # 2. shims が見つからない場合は、従来通り current ディレクトリの exe を直接実行
+            exe_path = current_dir / process_name
+        
         if not os.path.exists(exe_path):
             print(f"Executable not found: {exe_path}")
             continue
 
         try:
-            subprocess.Popen([exe_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.Popen([str(exe_path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             print(f"Started {exe_path}.")
         except Exception as e:
             print(f"Failed to start {exe_path}: {e}")

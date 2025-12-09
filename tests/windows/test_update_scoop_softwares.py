@@ -140,20 +140,91 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
         except UnboundLocalError:
             self.fail("UnboundLocalError should not be raised")
 
-    @patch('src.windows.update_scoop_softwares.os.getenv')
-    @patch('src.windows.update_scoop_softwares.os.path.exists', return_value=True)
     @patch('src.windows.update_scoop_softwares.subprocess.Popen')
-    def test_start_app(self, mock_popen, mock_exists, mock_getenv):
+    def test_start_app_with_shim(self, mock_popen):
+        # shims ディレクトリに実行ファイルがある場合、それを優先的に使用する
         with tempfile.TemporaryDirectory() as tmpdir:
-            mock_getenv.return_value = tmpdir
-            # create apps/app1/current/app.exe
-            app_path = Path(tmpdir) / 'apps' / 'app1' / 'current'
-            app_path.mkdir(parents=True)
-            exe = app_path / 'app.exe'
-            exe.write_text('')
-            start_app('app1', [{'name': 'app.exe'}])
-            # subprocess.Popen should be called with the exe path
-            mock_popen.assert_called_with([exe], stdout=unittest.mock.ANY, stderr=unittest.mock.ANY)
+            # scoop ディレクトリ構造を作成
+            apps_path = Path(tmpdir) / 'apps' / 'app1' / 'current'
+            apps_path.mkdir(parents=True)
+            shims_path = Path(tmpdir) / 'shims'
+            shims_path.mkdir(parents=True)
+            
+            # current ディレクトリに exe を配置
+            current_exe = apps_path / 'app.exe'
+            current_exe.write_text('')
+            
+            # shims ディレクトリに shim を配置
+            shim_exe = shims_path / 'app.exe'
+            shim_exe.write_text('')
+            
+            with patch('src.windows.update_scoop_softwares.os.getenv', return_value=tmpdir):
+                start_app('app1', [{'name': 'app.exe'}])
+                # shims の exe が使用されることを確認
+                mock_popen.assert_called_with([str(shim_exe)], stdout=unittest.mock.ANY, stderr=unittest.mock.ANY)
+    
+    @patch('src.windows.update_scoop_softwares.subprocess.Popen')
+    def test_start_app_fallback_to_current(self, mock_popen):
+        # shims がない場合は current ディレクトリの exe を使用する
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # scoop ディレクトリ構造を作成
+            apps_path = Path(tmpdir) / 'apps' / 'app1' / 'current'
+            apps_path.mkdir(parents=True)
+            shims_path = Path(tmpdir) / 'shims'
+            shims_path.mkdir(parents=True)
+            
+            # current ディレクトリのみに exe を配置
+            current_exe = apps_path / 'app.exe'
+            current_exe.write_text('')
+            
+            with patch('src.windows.update_scoop_softwares.os.getenv', return_value=tmpdir):
+                start_app('app1', [{'name': 'app.exe'}])
+                # current の exe が使用されることを確認
+                mock_popen.assert_called_with([str(current_exe)], stdout=unittest.mock.ANY, stderr=unittest.mock.ANY)
+    
+    @patch('src.windows.update_scoop_softwares.subprocess.Popen')
+    def test_start_app_with_cmd_shim(self, mock_popen):
+        # .cmd shim がある場合も正しく使用される
+        with tempfile.TemporaryDirectory() as tmpdir:
+            apps_path = Path(tmpdir) / 'apps' / 'app1' / 'current'
+            apps_path.mkdir(parents=True)
+            shims_path = Path(tmpdir) / 'shims'
+            shims_path.mkdir(parents=True)
+            
+            # current ディレクトリに exe を配置
+            current_exe = apps_path / 'app.exe'
+            current_exe.write_text('')
+            
+            # shims ディレクトリに .cmd shim を配置
+            shim_cmd = shims_path / 'app.cmd'
+            shim_cmd.write_text('')
+            
+            with patch('src.windows.update_scoop_softwares.os.getenv', return_value=tmpdir):
+                start_app('app1', [{'name': 'app.exe'}])
+                # shims の .cmd が使用されることを確認
+                mock_popen.assert_called_with([str(shim_cmd)], stdout=unittest.mock.ANY, stderr=unittest.mock.ANY)
+    
+    @patch('src.windows.update_scoop_softwares.subprocess.Popen')
+    def test_start_app_with_ps1_shim(self, mock_popen):
+        # .ps1 shim がある場合も正しく使用される
+        with tempfile.TemporaryDirectory() as tmpdir:
+            apps_path = Path(tmpdir) / 'apps' / 'app1' / 'current'
+            apps_path.mkdir(parents=True)
+            shims_path = Path(tmpdir) / 'shims'
+            shims_path.mkdir(parents=True)
+            
+            # current ディレクトリに exe を配置
+            current_exe = apps_path / 'app.exe'
+            current_exe.write_text('')
+            
+            # shims ディレクトリに .ps1 shim を配置
+            shim_ps1 = shims_path / 'app.ps1'
+            shim_ps1.write_text('')
+            
+            with patch('src.windows.update_scoop_softwares.os.getenv', return_value=tmpdir):
+                start_app('app1', [{'name': 'app.exe'}])
+                # shims の .ps1 が使用されることを確認
+                mock_popen.assert_called_with([str(shim_ps1)], stdout=unittest.mock.ANY, stderr=unittest.mock.ANY)
 
 
 if __name__ == '__main__':
