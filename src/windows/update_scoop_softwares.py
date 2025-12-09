@@ -215,20 +215,21 @@ def start_app(app_name, app_processes):
         base_name = Path(process_name).stem
         
         # 1. まず shims ディレクトリから実行ファイルを探す（引数が設定されている場合に対応）
-        shim_exe_path = shims_path / f"{base_name}.exe"
-        shim_cmd_path = shims_path / f"{base_name}.cmd"
-        shim_ps1_path = shims_path / f"{base_name}.ps1"
-        
         # shims に実行可能ファイルが存在する場合は、それを使用
+        shim_exe_path = shims_path / f"{base_name}.exe"
         if shim_exe_path.exists():
             exe_path = shim_exe_path
-        elif shim_cmd_path.exists():
-            exe_path = shim_cmd_path
-        elif shim_ps1_path.exists():
-            exe_path = shim_ps1_path
         else:
-            # 2. shims が見つからない場合は、従来通り current ディレクトリの exe を直接実行
-            exe_path = current_dir / process_name
+            shim_cmd_path = shims_path / f"{base_name}.cmd"
+            if shim_cmd_path.exists():
+                exe_path = shim_cmd_path
+            else:
+                shim_ps1_path = shims_path / f"{base_name}.ps1"
+                if shim_ps1_path.exists():
+                    exe_path = shim_ps1_path
+                else:
+                    # 2. shims が見つからない場合は、従来通り current ディレクトリの exe を直接実行
+                    exe_path = current_dir / process_name
         
         if not os.path.exists(exe_path):
             print(f"Executable not found: {exe_path}")

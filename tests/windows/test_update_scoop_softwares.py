@@ -142,7 +142,7 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
 
     @patch('src.windows.update_scoop_softwares.subprocess.Popen')
     def test_start_app_with_shim(self, mock_popen):
-        # shims ディレクトリに実行ファイルがある場合、それを優先的に使用する
+        # Test that shims in the shims directory are used instead of current directory exe files
         with tempfile.TemporaryDirectory() as tmpdir:
             # scoop ディレクトリ構造を作成
             apps_path = Path(tmpdir) / 'apps' / 'app1' / 'current'
@@ -165,7 +165,7 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
     
     @patch('src.windows.update_scoop_softwares.subprocess.Popen')
     def test_start_app_fallback_to_current(self, mock_popen):
-        # shims がない場合は current ディレクトリの exe を使用する
+        # Test fallback to current directory exe when no shims exist
         with tempfile.TemporaryDirectory() as tmpdir:
             # scoop ディレクトリ構造を作成
             apps_path = Path(tmpdir) / 'apps' / 'app1' / 'current'
@@ -184,7 +184,7 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
     
     @patch('src.windows.update_scoop_softwares.subprocess.Popen')
     def test_start_app_with_cmd_shim(self, mock_popen):
-        # .cmd shim がある場合も正しく使用される
+        # Test that .cmd shims are correctly used when .exe shims don't exist
         with tempfile.TemporaryDirectory() as tmpdir:
             apps_path = Path(tmpdir) / 'apps' / 'app1' / 'current'
             apps_path.mkdir(parents=True)
@@ -206,7 +206,7 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
     
     @patch('src.windows.update_scoop_softwares.subprocess.Popen')
     def test_start_app_with_ps1_shim(self, mock_popen):
-        # .ps1 shim がある場合も正しく使用される
+        # Test that .ps1 shims are correctly used when .exe and .cmd shims don't exist
         with tempfile.TemporaryDirectory() as tmpdir:
             apps_path = Path(tmpdir) / 'apps' / 'app1' / 'current'
             apps_path.mkdir(parents=True)
