@@ -209,7 +209,12 @@ def get_app_startup_command(app_name, process_name):
     Returns:
         tuple: (実行ファイルパス, 引数リスト) または (None, None)
     """
-    scoop_path = Path(os.getenv("SCOOP"))
+    scoop_path_str = os.getenv("SCOOP")
+    if not scoop_path_str:
+        logger.error("SCOOP environment variable is not set")
+        return None, None
+    
+    scoop_path = Path(scoop_path_str)
     manifest_path = scoop_path / "apps" / app_name / "current" / "manifest.json"
     
     if not manifest_path.exists():
@@ -244,7 +249,7 @@ def get_app_startup_command(app_name, process_name):
         
         return None, None
     except Exception as e:
-        print(f"Failed to read manifest for {app_name}: {e}")
+        logger.error(f"Failed to read manifest for {app_name}: {e}")
         return None, None
 
 def start_app(app_name, app_processes):

@@ -1,5 +1,6 @@
 import unittest
 import tempfile
+import json
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -165,6 +166,13 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
             self.assertIsNone(exe_path)
             self.assertIsNone(args)
 
+    @patch('src.windows.update_scoop_softwares.os.getenv', return_value=None)
+    def test_get_app_startup_command_no_scoop_env(self, mock_getenv):
+        """SCOOP 環境変数が設定されていない場合のテスト"""
+        exe_path, args = get_app_startup_command('app1', 'test.exe')
+        self.assertIsNone(exe_path)
+        self.assertIsNone(args)
+
     @patch('src.windows.update_scoop_softwares.os.getenv')
     def test_get_app_startup_command_no_shortcuts(self, mock_getenv):
         """shortcuts 定義がない場合のテスト"""
@@ -189,7 +197,6 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
             manifest_file = manifest_path / 'manifest.json'
             
             # shortcuts 定義を作成（引数付き）
-            import json
             manifest_data = {
                 "version": "1.0",
                 "shortcuts": [
@@ -214,7 +221,6 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
             manifest_file = manifest_path / 'manifest.json'
             
             # shortcuts 定義を作成（引数なし）
-            import json
             manifest_data = {
                 "version": "1.0",
                 "shortcuts": [
@@ -239,7 +245,6 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
             manifest_file = manifest_path / 'manifest.json'
             
             # 複数の shortcuts 定義を作成
-            import json
             manifest_data = {
                 "version": "1.0",
                 "shortcuts": [
