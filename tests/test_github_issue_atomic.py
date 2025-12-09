@@ -202,6 +202,118 @@ class TestGitHubIssueAtomic(unittest.TestCase):
         self.assertIn("| ✅ | Computer2 | Windows | scoop | 5 | 0 | <!-- update-softwares#Computer2#scoop -->", updated_body)
         self.assertIn("# Update Status", updated_body)
         self.assertIn("End of document", updated_body)
+    
+    @patch('src.requests.get')
+    def test_parse_body_with_os_eol_column(self, mock_get):
+        """Test parsing issue body with OS EOL column."""
+        mock_get_response = MagicMock()
+        mock_get_response.status_code = 200
+        mock_get_response.json.return_value = {"body": "test"}
+        mock_get.return_value = mock_get_response
+        
+        github_issue = GitHubIssue(self.repo_name, self.issue_number, self.github_token)
+        
+        # 新フォーマット (OS EOL 列あり)
+        body_with_eol = (
+            "| ⏳ | Computer1 | Linux | apt | 0 | 0 | 2027/04/30 (500 日後) | <!-- update-softwares#Computer1#apt -->\n"
+            "| 🔴 | Computer2 | Windows | scoop | 5 | 0 | **2025/10/14 (50 日後)** | <!-- update-softwares#Computer2#scoop -->"
+        )
+        
+        software_updates = github_issue._get_software_update_rows_from_body(body_with_eol)
+        
+        self.assertEqual(len(software_updates), 2)
+        
+        # 1つ目のエントリ (OS EOL あり)
+        self.assertEqual(software_updates[0]["computer_name"], "Computer1")
+        self.assertEqual(software_updates[0]["package_manager"], "apt")
+        self.assertEqual(software_updates[0]["markdown"]["os_eol"], "2027/04/30 (500 日後)")
+        
+        # 2つ目のエントリ (OS EOL あり、クリティカル)
+        self.assertEqual(software_updates[1]["computer_name"], "Computer2")
+        self.assertEqual(software_updates[1]["package_manager"], "scoop")
+        self.assertEqual(software_updates[1]["markdown"]["os_eol"], "**2025/10/14 (50 日後)**")
+    
+    @patch('src.requests.patch')
+    @patch('src.requests.get')
+    def test_atomic_update_with_os_eol(self, mock_get, mock_patch):
+        """Test atomic update with OS EOL information."""
+        # Setup initial issue body with OS EOL column
+        initial_body = "| ⏳ | Computer1 | Linux | apt | 0 | 0 | 不明 | <!-- update-softwares#Computer1#apt -->"
+        
+        mock_get_response = MagicMock()
+        mock_get_response.status_code = 200
+        mock_get_response.json.return_value = {"body": initial_body}
+        mock_get.return_value = mock_get_response
+        
+        # Setup successful patch response
+        mock_patch_response = MagicMock()
+        mock_patch_response.status_code = 200
+        mock_patch.return_value = mock_patch_response
+        
+        github_issue = GitHubIssue(self.repo_name, self.issue_number, self.github_token)
+        
+        # Test atomic update with OS EOL
+        result = github_issue.atomic_update_with_retry(
+            computer_name="Computer1",
+            package_manager="apt",
+            status="success",
+            upgraded="5",
+            failed="0",
+            os_eol="2027/04/30 (800 日後)",
+            os_eol_critical=False
+        )
+        
+        self.assertTrue(result)
+        mock_patch.assert_called_once()
+        
+        # Verify the patch call contains the expected updated body with OS EOL
+        patch_call_args = mock_patch.call_args
+        updated_body = patch_call_args[1]['json']['body']
+        self.assertIn("✅", updated_body)  # Success checkmark
+        self.assertIn("5", updated_body)   # Upgraded count
+        self.assertIn("0", updated_body)   # Failed count
+        self.assertIn("2027/04/30 (800 日後)", updated_body)  # OS EOL info
+    
+    @patch('src.requests.patch')
+    @patch('src.requests.get')
+    def test_atomic_update_with_critical_os_eol(self, mock_get, mock_patch):
+        """Test atomic update with critical OS EOL (less than 90 days)."""
+        # Setup initial issue body with OS EOL column
+        initial_body = "| ⏳ | Computer1 | Windows | scoop | 0 | 0 | 不明 | <!-- update-softwares#Computer1#scoop -->"
+        
+        mock_get_response = MagicMock()
+        mock_get_response.status_code = 200
+        mock_get_response.json.return_value = {"body": initial_body}
+        mock_get.return_value = mock_get_response
+        
+        # Setup successful patch response
+        mock_patch_response = MagicMock()
+        mock_patch_response.status_code = 200
+        mock_patch.return_value = mock_patch_response
+        
+        github_issue = GitHubIssue(self.repo_name, self.issue_number, self.github_token)
+        
+        # Test atomic update with critical OS EOL (checkmark should be 🔴)
+        result = github_issue.atomic_update_with_retry(
+            computer_name="Computer1",
+            package_manager="scoop",
+            status="success",
+            upgraded="13",
+            failed="0",
+            os_eol="**2025/12/31 (20 日後)**",
+            os_eol_critical=True
+        )
+        
+        self.assertTrue(result)
+        mock_patch.assert_called_once()
+        
+        # Verify the patch call contains 🔴 checkmark for critical EOL
+        patch_call_args = mock_patch.call_args
+        updated_body = patch_call_args[1]['json']['body']
+        self.assertIn("🔴", updated_body)  # Critical checkmark
+        self.assertIn("13", updated_body)  # Upgraded count
+        self.assertIn("0", updated_body)   # Failed count
+        self.assertIn("**2025/12/31 (20 日後)**", updated_body)  # Critical OS EOL info
 
 if __name__ == "__main__":
     unittest.main()

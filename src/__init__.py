@@ -35,31 +35,77 @@ class GitHubIssue:
 
     return package_managers
 
-  def update_software_update_row(self, computer_name, package_manager, status, upgraded, failed):
+  def _get_checkmark(self, status, os_eol_critical=False):
+    """
+    ステータスとEOL状態からチェックマークを取得する
+    
+    Args:
+      status: ステータス ("success", "running", "failed")
+      os_eol_critical: EOL がクリティカル (90 日未満) かどうか
+      
+    Returns:
+      str: チェックマーク文字列
+    """
+    if os_eol_critical:
+      return "🔴"
+    return self.status_mapping.get(status, status)
+  
+  def _build_markdown_row(self, software_update):
+    """
+    ソフトウェア更新情報から Markdown テーブル行を構築する
+    
+    Args:
+      software_update: ソフトウェア更新情報の辞書
+      
+    Returns:
+      str: フォーマットされた Markdown テーブル行
+    """
+    markdown = software_update["markdown"]
+    
+    # OS EOL 列がある場合とない場合で処理を分ける
+    if "os_eol" in markdown:
+      return "| " + " | ".join([
+        markdown["checkmark"],
+        markdown["computer_name"],
+        markdown["operation_system"],
+        markdown["package_manager"],
+        markdown["upgraded"],
+        markdown["failed"],
+        markdown["os_eol"]
+      ]) + " |"
+    else:
+      return "| " + " | ".join([
+        markdown["checkmark"],
+        markdown["computer_name"],
+        markdown["operation_system"],
+        markdown["package_manager"],
+        markdown["upgraded"],
+        markdown["failed"]
+      ]) + " |"
+
+  def update_software_update_row(self, computer_name, package_manager, status, upgraded, failed, os_eol=None, os_eol_critical=False):
     if status not in self.status_mapping:
       raise Exception(f"Invalid status: {status}. Valid values are {list(self.status_mapping.keys())}")
 
-    checkmark = self.status_mapping[status]
+    checkmark = self._get_checkmark(status, os_eol_critical)
 
     for software_update in self.software_updates:
       if software_update["computer_name"] == computer_name and software_update["package_manager"] == package_manager:
         software_update["markdown"]["checkmark"] = checkmark
         software_update["markdown"]["upgraded"] = upgraded
         software_update["markdown"]["failed"] = failed
-        software_update["markdown"]["raw"] = "| " + " | ".join([
-          software_update["markdown"]["checkmark"],
-          software_update["markdown"]["computer_name"],
-          software_update["markdown"]["operation_system"],
-          software_update["markdown"]["package_manager"],
-          software_update["markdown"]["upgraded"],
-          software_update["markdown"]["failed"]
-        ]) + " |"
+        
+        # OS EOL 情報がある場合は更新
+        if os_eol is not None:
+          software_update["markdown"]["os_eol"] = os_eol
+        
+        software_update["markdown"]["raw"] = self._build_markdown_row(software_update)
 
         return True
 
     return False
 
-  def atomic_update_with_retry(self, computer_name, package_manager, status, upgraded, failed, max_retries=3):
+  def atomic_update_with_retry(self, computer_name, package_manager, status, upgraded, failed, os_eol=None, os_eol_critical=False, max_retries=3):
     """
     Atomically update the issue body with retry logic to handle concurrent updates.
     This method combines update processing and GitHub Issue body reflection into a single operation.
@@ -77,18 +123,17 @@ class GitHubIssue:
         for software_update in current_software_updates:
           if software_update["computer_name"] == computer_name and software_update["package_manager"] == package_manager:
             # Update the status
-            checkmark = self.status_mapping.get(status, status)
+            checkmark = self._get_checkmark(status, os_eol_critical)
+            
             software_update["markdown"]["checkmark"] = checkmark
             software_update["markdown"]["upgraded"] = upgraded
             software_update["markdown"]["failed"] = failed
-            software_update["markdown"]["raw"] = "| " + " | ".join([
-              software_update["markdown"]["checkmark"],
-              software_update["markdown"]["computer_name"],
-              software_update["markdown"]["operation_system"],
-              software_update["markdown"]["package_manager"],
-              software_update["markdown"]["upgraded"],
-              software_update["markdown"]["failed"]
-            ]) + " |"
+            
+            # OS EOL 情報がある場合は更新
+            if os_eol is not None:
+              software_update["markdown"]["os_eol"] = os_eol
+            
+            software_update["markdown"]["raw"] = self._build_markdown_row(software_update)
             updated = True
             break
         
@@ -160,28 +205,57 @@ class GitHubIssue:
       # | で split して、それぞれの値を取得する
       markdown = m.group("markdown")
       split_markdown = markdown.split("|")
-      if len(split_markdown) != 8:
+      
+      # 8列 (旧フォーマット) または 9列 (新フォーマット: OS EOL 追加) をサポート
+      if len(split_markdown) == 8:
+        # 旧フォーマット (OS EOL なし)
+        checkmark = split_markdown[1].strip()
+        view_computer_name = split_markdown[2].strip()
+        operation_system = split_markdown[3].strip()
+        package_manager = split_markdown[4].strip()
+        upgraded = split_markdown[5].strip()
+        failed = split_markdown[6].strip()
+        
+        software_updates.append({
+          "markdown": {
+            "checkmark": checkmark,
+            "computer_name": view_computer_name,
+            "operation_system": operation_system,
+            "package_manager": package_manager,
+            "upgraded": upgraded,
+            "failed": failed,
+            "raw": markdown
+          },
+          "computer_name": m.group("computer_name"),
+          "package_manager": m.group("package_manager")
+        })
+      elif len(split_markdown) == 9:
+        # 新フォーマット (OS EOL あり)
+        checkmark = split_markdown[1].strip()
+        view_computer_name = split_markdown[2].strip()
+        operation_system = split_markdown[3].strip()
+        package_manager = split_markdown[4].strip()
+        upgraded = split_markdown[5].strip()
+        failed = split_markdown[6].strip()
+        os_eol = split_markdown[7].strip()
+        
+        software_updates.append({
+          "markdown": {
+            "checkmark": checkmark,
+            "computer_name": view_computer_name,
+            "operation_system": operation_system,
+            "package_manager": package_manager,
+            "upgraded": upgraded,
+            "failed": failed,
+            "os_eol": os_eol,
+            "raw": markdown
+          },
+          "computer_name": m.group("computer_name"),
+          "package_manager": m.group("package_manager")
+        })
+      else:
+        # サポートされていない列数の場合はスキップ
         continue
-      checkmark = split_markdown[1].strip()
-      view_computer_name = split_markdown[2].strip()
-      operation_system = split_markdown[3].strip()
-      package_manager = split_markdown[4].strip()
-      upgraded = split_markdown[5].strip()
-      failed = split_markdown[6].strip()
-
-      software_updates.append({
-        "markdown": {
-          "checkmark": checkmark,
-          "computer_name": view_computer_name,
-          "operation_system": operation_system,
-          "package_manager": package_manager,
-          "upgraded": upgraded,
-          "failed": failed,
-          "raw": markdown
-        },
-        "computer_name": m.group("computer_name"),
-        "package_manager": m.group("package_manager")
-      })
 
     return software_updates
 
@@ -267,28 +341,57 @@ class GitHubIssue:
       # | で split して、それぞれの値を取得する
       markdown = m.group("markdown")
       split_markdown = markdown.split("|")
-      if len(split_markdown) != 8:
+      
+      # 8列 (旧フォーマット) または 9列 (新フォーマット: OS EOL 追加) をサポート
+      if len(split_markdown) == 8:
+        # 旧フォーマット (OS EOL なし)
+        checkmark = split_markdown[1].strip()
+        view_computer_name = split_markdown[2].strip()
+        operation_system = split_markdown[3].strip()
+        package_manager = split_markdown[4].strip()
+        upgraded = split_markdown[5].strip()
+        failed = split_markdown[6].strip()
+        
+        software_updates.append({
+          "markdown": {
+            "checkmark": checkmark,
+            "computer_name": view_computer_name,
+            "operation_system": operation_system,
+            "package_manager": package_manager,
+            "upgraded": upgraded,
+            "failed": failed,
+            "raw": markdown
+          },
+          "computer_name": m.group("computer_name"),
+          "package_manager": m.group("package_manager")
+        })
+      elif len(split_markdown) == 9:
+        # 新フォーマット (OS EOL あり)
+        checkmark = split_markdown[1].strip()
+        view_computer_name = split_markdown[2].strip()
+        operation_system = split_markdown[3].strip()
+        package_manager = split_markdown[4].strip()
+        upgraded = split_markdown[5].strip()
+        failed = split_markdown[6].strip()
+        os_eol = split_markdown[7].strip()
+        
+        software_updates.append({
+          "markdown": {
+            "checkmark": checkmark,
+            "computer_name": view_computer_name,
+            "operation_system": operation_system,
+            "package_manager": package_manager,
+            "upgraded": upgraded,
+            "failed": failed,
+            "os_eol": os_eol,
+            "raw": markdown
+          },
+          "computer_name": m.group("computer_name"),
+          "package_manager": m.group("package_manager")
+        })
+      else:
+        # サポートされていない列数の場合はスキップ
         continue
-      checkmark = split_markdown[1].strip()
-      view_computer_name = split_markdown[2].strip()
-      operation_system = split_markdown[3].strip()
-      package_manager = split_markdown[4].strip()
-      upgraded = split_markdown[5].strip()
-      failed = split_markdown[6].strip()
-
-      software_updates.append({
-        "markdown": {
-          "checkmark": checkmark,
-          "computer_name": view_computer_name,
-          "operation_system": operation_system,
-          "package_manager": package_manager,
-          "upgraded": upgraded,
-          "failed": failed,
-          "raw": markdown
-        },
-        "computer_name": m.group("computer_name"),
-        "package_manager": m.group("package_manager")
-      })
 
     return software_updates
 
