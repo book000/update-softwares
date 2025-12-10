@@ -5,6 +5,7 @@ import subprocess
 import textwrap
 import time
 from venv import logger
+import json
 
 import psutil
 import traceback
@@ -197,9 +198,66 @@ def stop_app(app_processes):
 
     return stopped_processes
 
+def get_app_startup_command(app_name, process_name):
+    """
+    manifest.json から shortcuts 定義を読み取り、起動コマンドを取得する
+    
+    Args:
+        app_name: アプリケーション名
+        process_name: プロセス名（実行ファイル名）
+    
+    Returns:
+        tuple: (実行ファイルパス, 引数リスト) または (None, None)
+    """
+    scoop_path_str = os.getenv("SCOOP")
+    if not scoop_path_str:
+        logger.error("SCOOP environment variable is not set")
+        return None, None
+    
+    scoop_path = Path(scoop_path_str)
+    manifest_path = scoop_path / "apps" / app_name / "current" / "manifest.json"
+    
+    if not manifest_path.exists():
+        return None, None
+    
+    try:
+        with open(manifest_path, 'r', encoding='utf-8') as f:
+            manifest = json.load(f)
+        
+        # shortcuts 定義を確認
+        shortcuts = manifest.get("shortcuts")
+        if not shortcuts:
+            return None, None
+        
+        # process_name に対応する shortcut を探す
+        for shortcut in shortcuts:
+            if not isinstance(shortcut, list) or len(shortcut) < 2:
+                continue
+            
+            # shortcut の形式: [exe_path, shortcut_name, arguments...]
+            exe_path_str = shortcut[0]
+            if not exe_path_str or not isinstance(exe_path_str, str):
+                continue
+            
+            # Windows パスをクロスプラットフォーム対応に変換
+            exe_path_normalized = exe_path_str.replace('\\', os.sep)
+            exe_name = Path(exe_path_normalized).name
+            
+            # プロセス名と一致するか確認
+            if exe_name.lower() == process_name.lower():
+                full_exe_path = scoop_path / "apps" / app_name / "current" / exe_path_normalized
+                # shortcut[2:]で引数を取得（shortcut名の後の要素）
+                args = shortcut[2:] if len(shortcut) > 2 else []
+                return full_exe_path, args
+        
+        return None, None
+    except Exception as e:
+        logger.error(f"Failed to read manifest for {app_name}: {e}")
+        return None, None
+
 def start_app(app_name, app_processes):
     # アプリケーションを起動する
-    # current の exe パスを取得し、ファイルが存在する場合は起動する
+    # manifest.json の shortcuts 定義を参照し、引数付きで起動する
     scoop_path = Path(os.getenv("SCOOP"))
     apps_path = scoop_path / "apps"
     app_dir = apps_path / app_name
@@ -209,17 +267,32 @@ def start_app(app_name, app_processes):
         return
 
     for process in app_processes:
-        # exe_path = process["exe"]
-        exe_path = current_dir / process["name"]
-        if not os.path.exists(exe_path):
-            print(f"Executable not found: {exe_path}")
+        process_name = process["name"]
+        
+        # manifest.json から起動コマンドを取得
+        exe_path, args = get_app_startup_command(app_name, process_name)
+        
+        # manifest に定義がない場合は従来の方法でフォールバック
+        if exe_path is None:
+            exe_path = current_dir / process_name
+            args = []
+        
+        exe_path_str = str(exe_path)  # ここで一度変換
+        
+        if not os.path.exists(exe_path_str):
+            print(f"Executable not found: {exe_path_str}")
             continue
 
         try:
-            subprocess.Popen([exe_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print(f"Started {exe_path}.")
+            # 実行ファイルパスと引数を結合してコマンドを構築
+            command = [exe_path_str] + args
+            subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if args:
+                print(f"Started {exe_path_str} with arguments: {' '.join(args)}")
+            else:
+                print(f"Started {exe_path_str}.")
         except Exception as e:
-            print(f"Failed to start {exe_path}: {e}")
+            print(f"Failed to start {exe_path_str}: {e}")
 
 
 def run(github_issue, hostname) -> None:
