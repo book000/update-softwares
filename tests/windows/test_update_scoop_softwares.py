@@ -305,6 +305,39 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
             # 引数なしで起動されることを確認
             mock_popen.assert_called_with([str(exe)], stdout=unittest.mock.ANY, stderr=unittest.mock.ANY)
 
+    @patch('src.windows.update_scoop_softwares.os.getenv')
+    def test_get_app_startup_command_invalid_shortcuts(self, mock_getenv):
+        """不正な shortcuts データの場合のテスト"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_getenv.return_value = tmpdir
+            manifest_path = Path(tmpdir) / 'apps' / 'app1' / 'current'
+            manifest_path.mkdir(parents=True)
+            manifest_file = manifest_path / 'manifest.json'
+            
+            # 不正な shortcuts 定義（文字列が含まれる）
+            manifest_data = {
+                "version": "1.0",
+                "shortcuts": [
+                    "invalid",  # list ではない
+                    ["", "Empty Path"],  # 空の exe_path
+                    [123, "Number Path"],  # 数値の exe_path
+                    ["valid.exe", "Valid App"]  # 有効なエントリ
+                ]
+            }
+            with open(manifest_file, 'w', encoding='utf-8') as f:
+                json.dump(manifest_data, f)
+            
+            # valid.exe は見つかる
+            exe_path, args = get_app_startup_command('app1', 'valid.exe')
+            expected_path = Path(tmpdir) / 'apps' / 'app1' / 'current' / 'valid.exe'
+            self.assertEqual(exe_path, expected_path)
+            self.assertEqual(args, [])
+            
+            # 不正なエントリは無視される
+            exe_path, args = get_app_startup_command('app1', 'test.exe')
+            self.assertIsNone(exe_path)
+            self.assertIsNone(args)
+
 
 if __name__ == '__main__':
     unittest.main()

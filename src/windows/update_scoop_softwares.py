@@ -236,6 +236,9 @@ def get_app_startup_command(app_name, process_name):
             
             # shortcut の形式: [exe_path, shortcut_name, arguments...]
             exe_path_str = shortcut[0]
+            if not exe_path_str or not isinstance(exe_path_str, str):
+                continue
+            
             # Windows パスをクロスプラットフォーム対応に変換
             exe_path_normalized = exe_path_str.replace('\\', os.sep)
             exe_name = Path(exe_path_normalized).name
@@ -243,7 +246,7 @@ def get_app_startup_command(app_name, process_name):
             # プロセス名と一致するか確認
             if exe_name.lower() == process_name.lower():
                 full_exe_path = scoop_path / "apps" / app_name / "current" / exe_path_normalized
-                # 引数がある場合は取得（2番目以降の要素）
+                # shortcut[2:]で引数を取得（shortcut名の後の要素）
                 args = shortcut[2:] if len(shortcut) > 2 else []
                 return full_exe_path, args
         
@@ -274,20 +277,22 @@ def start_app(app_name, app_processes):
             exe_path = current_dir / process_name
             args = []
         
-        if not os.path.exists(exe_path):
-            print(f"Executable not found: {exe_path}")
+        exe_path_str = str(exe_path)  # ここで一度変換
+        
+        if not os.path.exists(exe_path_str):
+            print(f"Executable not found: {exe_path_str}")
             continue
 
         try:
             # 実行ファイルパスと引数を結合してコマンドを構築
-            command = [str(exe_path)] + args
+            command = [exe_path_str] + args
             subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if args:
-                print(f"Started {exe_path} with arguments: {' '.join(args)}")
+                print(f"Started {exe_path_str} with arguments: {' '.join(args)}")
             else:
-                print(f"Started {exe_path}.")
+                print(f"Started {exe_path_str}.")
         except Exception as e:
-            print(f"Failed to start {exe_path}: {e}")
+            print(f"Failed to start {exe_path_str}: {e}")
 
 
 def run(github_issue, hostname) -> None:
