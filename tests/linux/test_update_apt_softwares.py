@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 from subprocess import CalledProcessError
 import os
 
-from src.linux.update_apt_softwares import is_root, run_apt_update, get_apt_full_upgrade_target, run_apt_full_upgrade
+from src.linux.update_apt_softwares import is_root, run_apt_update, get_apt_full_upgrade_target, run_apt_full_upgrade, _is_installed_version
 
 class TestUpdateAptSoftwares(unittest.TestCase):
     # 正常系: root権限での実行確認
@@ -56,7 +56,7 @@ class TestUpdateAptSoftwares(unittest.TestCase):
         )
         mock_run.return_value = mock_result
 
-        cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target(None)
+        cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target()
 
         self.assertIsNone(cache)
         self.assertEqual(len(to_upgrade), 1)
@@ -73,7 +73,7 @@ class TestUpdateAptSoftwares(unittest.TestCase):
         mock_result.stdout = "Reading package lists... Done"
         mock_run.return_value = mock_result
 
-        cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target(None)
+        cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target()
 
         self.assertIsNone(cache)
         self.assertEqual(len(to_upgrade), 0)
@@ -94,7 +94,7 @@ class TestUpdateAptSoftwares(unittest.TestCase):
         )
         mock_run.return_value = mock_result
 
-        cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target(None)
+        cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target()
 
         self.assertIsNone(cache)
         self.assertEqual(len(to_upgrade), 2)
@@ -116,7 +116,7 @@ class TestUpdateAptSoftwares(unittest.TestCase):
         )
         mock_run.return_value = mock_result
 
-        cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target(None)
+        cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target()
 
         self.assertIsNone(cache)
         self.assertEqual(len(to_upgrade), 1)
@@ -205,6 +205,15 @@ class TestUpdateAptSoftwares(unittest.TestCase):
 
         # アサーション
         mock_logger.error.assert_called_with("An error occurred during the upgrade: Update failed")
+
+    def test_is_installed_version(self):
+        self.assertFalse(_is_installed_version(None))
+        self.assertFalse(_is_installed_version(""))
+        self.assertFalse(_is_installed_version("not installed"))
+        self.assertFalse(_is_installed_version("not-installed"))
+        self.assertFalse(_is_installed_version("none"))
+        self.assertFalse(_is_installed_version("unknown"))
+        self.assertTrue(_is_installed_version("1.0-1"))
 
 if __name__ == "__main__":
     unittest.main()

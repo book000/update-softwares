@@ -149,27 +149,27 @@ class TestMainOSValidation(unittest.TestCase):
                 self.assertEqual(len(warning_messages), 1)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestLoggingSetup(unittest.TestCase):
+    def setUp(self):
+        self.root_logger = logging.getLogger()
+        for handler in list(self.root_logger.handlers):
+            self.root_logger.removeHandler(handler)
+            if hasattr(handler, "close"):
+                handler.close()
+
     def tearDown(self):
-        root_logger = logging.getLogger()
-        for handler in list(root_logger.handlers):
-            root_logger.removeHandler(handler)
+        for handler in list(self.root_logger.handlers):
+            self.root_logger.removeHandler(handler)
+            if hasattr(handler, "close"):
+                handler.close()
 
     def test_setup_logging_writes_file(self):
-        root_logger = logging.getLogger()
-        for handler in list(root_logger.handlers):
-            root_logger.removeHandler(handler)
-
         with tempfile.TemporaryDirectory() as tmpdir:
             os.environ["UPDATE_SOFTWARES_LOG_DIR"] = tmpdir
             try:
                 log_path = setup_logging()
                 logging.info("test log message")
-                for handler in root_logger.handlers:
+                for handler in self.root_logger.handlers:
                     if hasattr(handler, "flush"):
                         handler.flush()
 
@@ -178,8 +178,8 @@ class TestLoggingSetup(unittest.TestCase):
                     contents = f.read()
                 self.assertIn("test log message", contents)
             finally:
-                for handler in list(root_logger.handlers):
-                    root_logger.removeHandler(handler)
-                    if hasattr(handler, "close"):
-                        handler.close()
                 os.environ.pop("UPDATE_SOFTWARES_LOG_DIR", None)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -12,16 +12,33 @@ from .. import is_root
 logger = logging.getLogger(__name__)
 
 # Parse apt-get -s -V dist-upgrade output to avoid python-apt dependency.
+# Parse apt-get -s -V dist-upgrade output to avoid python-apt dependency.
+# candidate captures only the version (e.g. "1.1-1") and ignores repo metadata.
 _INST_RE = re.compile(r"^Inst\s+(?P<name>\S+)(?:\s+\[(?P<installed>[^\]]+)\])?\s+\((?P<candidate>[^\s\)]+)")
 _REMV_RE = re.compile(r"^Remv\s+(?P<name>\S+)(?:\s+\[(?P<installed>[^\]]+)\])?")
 _SUMMARY_UPGRADE_RE = re.compile(r"^\s*(?P<name>\S+)\s+\((?P<installed>[^)]+?)\s+=>\s+(?P<candidate>[^)]+?)\)")
 
 
 def _is_installed_version(value):
-    if not value:
-        return False
-    normalized = value.strip().lower()
-    return normalized not in ("not installed", "not-installed", "none")
+  if not value:
+    return False
+  normalized = value.strip().lower()
+  return normalized not in ("not installed", "not-installed", "none", "unknown")
+
+
+def _log_apt_stderr(stderr, context):
+  if not stderr:
+    return
+  for line in stderr.splitlines():
+    stripped = line.strip()
+    if not stripped:
+      continue
+    if stripped.startswith("E:"):
+      logger.error("%s stderr: %s", context, stripped)
+    elif stripped.startswith("W:"):
+      logger.warning("%s stderr: %s", context, stripped)
+    else:
+      logger.debug("%s stderr: %s", context, stripped)
 
 
 def run_apt_update() -> str:
@@ -33,12 +50,11 @@ def run_apt_update() -> str:
     )
     if result.stdout:
         logger.debug("apt-get update stdout:\n%s", result.stdout)
-    if result.stderr:
-        logger.debug("apt-get update stderr:\n%s", result.stderr)
+    _log_apt_stderr(result.stderr, "apt-get update")
     return result.stdout
 
 
-def get_apt_full_upgrade_target(_cache=None):
+def get_apt_full_upgrade_target():
     result = subprocess.run(
         ["apt-get", "-s", "-V", "dist-upgrade"],
         check=True,
@@ -47,8 +63,7 @@ def get_apt_full_upgrade_target(_cache=None):
     )
     if result.stdout:
         logger.debug("apt-get -s -V dist-upgrade stdout:\n%s", result.stdout)
-    if result.stderr:
-        logger.debug("apt-get -s -V dist-upgrade stderr:\n%s", result.stderr)
+    _log_apt_stderr(result.stderr, "apt-get -s -V dist-upgrade")
 
     to_upgrade = []
     to_install = []
@@ -58,6 +73,37 @@ def get_apt_full_upgrade_target(_cache=None):
     in_upgrade_summary = False
     for line in result.stdout.splitlines():
         line = line.strip()
+        if line.startswith("Inst "):
+            match = _INST_RE.match(line)
+            if not match:
+                logger.warning("Failed to parse apt-get line: %s", line)
+                continue
+            name = match.group("name")
+            installed = match.group("installed") or "unknown"
+            candidate = match.group("candidate")
+            entry = {
+                "name": name,
+                "installed": installed,
+                "candidate": candidate,
+            }
+            if _is_installed_version(installed):
+                to_upgrade.append(entry)
+            else:
+                to_install.append(entry)
+            continue
+        if line.startswith("Remv "):
+            match = _REMV_RE.match(line)
+            if not match:
+                logger.warning("Failed to parse apt-get line: %s", line)
+                continue
+            installed = match.group("installed") or "unknown"
+            to_remove.append(
+                {
+                    "name": match.group("name"),
+                    "installed": installed,
+                }
+            )
+            continue
         if line.startswith("The following packages will be upgraded:"):
             in_upgrade_summary = True
             continue
@@ -75,34 +121,6 @@ def get_apt_full_upgrade_target(_cache=None):
                     }
                 )
             continue
-        if line.startswith("Inst "):
-            match = _INST_RE.match(line)
-            if not match:
-                continue
-            name = match.group("name")
-            installed = match.group("installed")
-            candidate = match.group("candidate")
-            entry = {
-                "name": name,
-                "installed": installed,
-                "candidate": candidate,
-            }
-            if _is_installed_version(installed):
-                to_upgrade.append(entry)
-            else:
-                to_install.append(entry)
-        elif line.startswith("Remv "):
-            match = _REMV_RE.match(line)
-            if not match:
-                continue
-            installed = match.group("installed") or "unknown"
-            to_remove.append(
-                {
-                    "name": match.group("name"),
-                    "installed": installed,
-                }
-            )
-
     if not to_upgrade and summary_upgrades:
         to_upgrade = summary_upgrades
 
@@ -185,8 +203,8 @@ def run(github_issue, hostname):
         )
 
         logger.info("Updating package list...")
-        cache = run_apt_update()
-        cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target(cache)
+        run_apt_update()
+        _, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target()
         logger.info(f"Upgraded packages: {len(to_upgrade)}")
         logger.info(f"Installed packages: {len(to_install)}")
         logger.info(f"Removed packages: {len(to_remove)}")
@@ -221,8 +239,8 @@ def run(github_issue, hostname):
         result = run_apt_full_upgrade()
         final_status = "success" if result else "failed"
 
-        cache = run_apt_update()
-        cache, upgraded_to_upgrade, upgraded_to_install, upgraded_to_remove = get_apt_full_upgrade_target(cache)
+        run_apt_update()
+        _, upgraded_to_upgrade, upgraded_to_install, upgraded_to_remove = get_apt_full_upgrade_target()
         logger.info(f"Upgraded packages after upgrade: {len(upgraded_to_upgrade)}")
         logger.info(f"Installed packages after upgrade: {len(upgraded_to_install)}")
         logger.info(f"Removed packages after upgrade: {len(upgraded_to_remove)}")

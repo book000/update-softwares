@@ -36,8 +36,7 @@ fi
 check_command git
 check_command python3
 
-mkdir -p /opt/update-softwares
-chmod 777 /opt/update-softwares
+install -d -m 755 /opt/update-softwares /opt/update-softwares/logs
 cd /opt/update-softwares || exit 1
 
 # clone repository
