@@ -13,382 +13,382 @@ import traceback
 from ..os_eol import get_os_eol_info
 
 def update_scoop_repos():
-  # Scoop update を実行し、リポジトリを更新する
-  # 失敗した場合、5回リトライする
-  retry_count = 0
-  max_retries = 5
+    # Scoop update を実行し、リポジトリを更新する
+    # 失敗した場合、5回リトライする
+    retry_count = 0
+    max_retries = 5
 
-  while retry_count < max_retries:
-    try:
-      os.system("scoop update")
-      break
-    except Exception:
-      retry_count += 1
-      print(f"An error occurred during Scoop update. Retrying... ({retry_count}/{max_retries})")
-      time.sleep(5)
+    while retry_count < max_retries:
+        try:
+            os.system("scoop update")
+            break
+        except Exception:
+            retry_count += 1
+            print(f"An error occurred during Scoop update. Retrying... ({retry_count}/{max_retries})")
+            time.sleep(5)
 
-  if retry_count == max_retries:
-    print(f"Failed to update Scoop after {max_retries} retries.")
-    return False
-  return True
+    if retry_count == max_retries:
+        print(f"Failed to update Scoop after {max_retries} retries.")
+        return False
+    return True
 
 def get_scoop_status():
-    raw_output = os.popen("scoop status").read()
+        raw_output = os.popen("scoop status").read()
 
-    # ANSIカラーコードを除去
-    cleaned_output = re.sub(r'\x1b\[[0-9;]*m', '', raw_output)
+        # ANSIカラーコードを除去
+        cleaned_output = re.sub(r'\x1b\[[0-9;]*m', '', raw_output)
 
-    lines = cleaned_output.strip().splitlines()
+        lines = cleaned_output.strip().splitlines()
 
-    # ヘッダー行のインデックスを検出
-    header_index = None
-    for i, line in enumerate(lines):
-        if 'Name' in line and 'Installed Version' in line:
-            header_index = i
-            break
+        # ヘッダー行のインデックスを検出
+        header_index = None
+        for i, line in enumerate(lines):
+                if 'Name' in line and 'Installed Version' in line:
+                        header_index = i
+                        break
 
-    if header_index is None:
-        return []
+        if header_index is None:
+                return []
 
-    header_line = lines[header_index]
-    data_lines = lines[header_index + 2:]
+        header_line = lines[header_index]
+        data_lines = lines[header_index + 2:]
 
-    # 列の開始位置をヘッダー行から決定（例: Name starts at index 0, next col starts at first space after word）
-    columns = ['Name', 'Installed Version', 'Latest Version', 'Missing Dependencies', 'Info']
-    col_positions = []
-    for col in columns:
-        match = re.search(re.escape(col), header_line)
-        if match:
-            col_positions.append(match.start())
-        else:
-            col_positions.append(None)
+        # 列の開始位置をヘッダー行から決定（例: Name starts at index 0, next col starts at first space after word）
+        columns = ['Name', 'Installed Version', 'Latest Version', 'Missing Dependencies', 'Info']
+        col_positions = []
+        for col in columns:
+                match = re.search(re.escape(col), header_line)
+                if match:
+                        col_positions.append(match.start())
+                else:
+                        col_positions.append(None)
 
-    # 最後の列の終了位置は次の列開始位置がないので None とする
-    col_positions.append(None)
+        # 最後の列の終了位置は次の列開始位置がないので None とする
+        col_positions.append(None)
 
-    # 実データ行のパース
-    results = []
-    for line in data_lines:
-        if not line.strip():
-            continue
-        values = []
-        for i in range(len(columns)):
-            start = col_positions[i]
-            end = col_positions[i + 1]
-            if start is None:
-                values.append('')
-                continue
-            segment = line[start:end].rstrip() if end else line[start:].rstrip()
-            values.append(segment.strip())
+        # 実データ行のパース
+        results = []
+        for line in data_lines:
+                if not line.strip():
+                        continue
+                values = []
+                for i in range(len(columns)):
+                        start = col_positions[i]
+                        end = col_positions[i + 1]
+                        if start is None:
+                                values.append('')
+                                continue
+                        segment = line[start:end].rstrip() if end else line[start:].rstrip()
+                        values.append(segment.strip())
 
-        entry = dict(zip(['name', 'installed', 'latest', 'missing', 'info'], values))
-        results.append(entry)
+                entry = dict(zip(['name', 'installed', 'latest', 'missing', 'info'], values))
+                results.append(entry)
 
-    return results
+        return results
 
 def post_github_comment(github_issue, hostname, status_results):
-  # GitHub Issue にコメントを投稿する
-  comment_body = textwrap.dedent("""
-  ## {markdown_computer_name} : scoop upgrade
+    # GitHub Issue にコメントを投稿する
+    comment_body = textwrap.dedent("""
+    ## {markdown_computer_name} : scoop upgrade
 
-  ### Upgrades
+    ### Upgrades
 
-  {upgrade_list}
-  """).strip()
+    {upgrade_list}
+    """).strip()
 
-  upgrade_lists = []
-  if status_results:
-    upgrade_lists.append("| Name | Installed Version | Latest Version | Missing Dependencies | Info |")
-    upgrade_lists.append("| --- | --- | --- | --- | --- |")
-    for app in status_results:
-      upgrade_lists.append(f"| {app['name']} | {app['installed']} | {app['latest']} | {app['missing']} | {app['info']} |")
-  else:
-    upgrade_lists.append("No upgrades available.")
-  comment_body = comment_body.format(
-      markdown_computer_name=github_issue.get_markdown_computer_name(hostname),
-      upgrade_list="\n".join(upgrade_lists),
-  )
-  github_issue.comment(comment_body)
+    upgrade_lists = []
+    if status_results:
+        upgrade_lists.append("| Name | Installed Version | Latest Version | Missing Dependencies | Info |")
+        upgrade_lists.append("| --- | --- | --- | --- | --- |")
+        for app in status_results:
+            upgrade_lists.append(f"| {app['name']} | {app['installed']} | {app['latest']} | {app['missing']} | {app['info']} |")
+    else:
+        upgrade_lists.append("No upgrades available.")
+    comment_body = comment_body.format(
+            markdown_computer_name=github_issue.get_markdown_computer_name(hostname),
+            upgrade_list="\n".join(upgrade_lists),
+    )
+    github_issue.comment(comment_body)
 
 
 def get_processes():
-    results = []
-    for pid in psutil.pids():
-        try:
-            process = psutil.Process(pid)
-            process_info = {
-                "pid": pid,
-                "name": process.name(),
-                "exe": process.exe(),
-                "status": process.status(),
-            }
+        results = []
+        for pid in psutil.pids():
+                try:
+                        process = psutil.Process(pid)
+                        process_info = {
+                                "pid": pid,
+                                "name": process.name(),
+                                "exe": process.exe(),
+                                "status": process.status(),
+                        }
 
-            results.append(process_info)
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
+                        results.append(process_info)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
 
-    return results
+        return results
 
 def get_running_apps(app_names):
-    # アップグレード対象のアプリケーションのうち、実行中のアプリケーションとそのプロセス名を取得する
-    running_app_pids = {}
-    scoop_path = Path(os.getenv("SCOOP"))
-    apps_path = scoop_path / "apps"
+        # アップグレード対象のアプリケーションのうち、実行中のアプリケーションとそのプロセス名を取得する
+        running_app_pids = {}
+        scoop_path = Path(os.getenv("SCOOP"))
+        apps_path = scoop_path / "apps"
 
-    running_processes = get_processes()
+        running_processes = get_processes()
 
-    for app_name in app_names:
-        app_dir = apps_path / app_name
-        if not app_dir.exists():
-            continue
+        for app_name in app_names:
+                app_dir = apps_path / app_name
+                if not app_dir.exists():
+                        continue
 
-        # exe app_dir の下にあるか確認
-        app_running_processes = [
-            {"pid": process["pid"], "name": process["name"], "exe": process["exe"]}
-            for process in running_processes
-            if process["exe"].lower().startswith(str(app_dir).lower())
-        ]
+                # exe app_dir の下にあるか確認
+                app_running_processes = [
+                        {"pid": process["pid"], "name": process["name"], "exe": process["exe"]}
+                        for process in running_processes
+                        if process["exe"].lower().startswith(str(app_dir).lower())
+                ]
 
-        if app_running_processes:
-            running_app_pids[app_name] = app_running_processes
+                if app_running_processes:
+                        running_app_pids[app_name] = app_running_processes
 
-    return running_app_pids
+        return running_app_pids
 
 def update_scoop_apps(app_names):
-    # Scoop で管理されているアプリケーションをアップグレードする
-    results = {}
-    for app_name in app_names:
-        retry_count = 0
-        max_retries = 5
+        # Scoop で管理されているアプリケーションをアップグレードする
+        results = {}
+        for app_name in app_names:
+                retry_count = 0
+                max_retries = 5
 
-        while retry_count < max_retries:
-            try:
-                print(f"Updating {app_name}... ", end="")
-                os.system(f"scoop update {app_name}")
-                print("Updated.")
-                break
-            except Exception:
-                retry_count += 1
-                print(f"An error occurred during updating {app_name}. Retrying... ({retry_count}/{max_retries})")
-                time.sleep(5)
+                while retry_count < max_retries:
+                        try:
+                                print(f"Updating {app_name}... ", end="")
+                                os.system(f"scoop update {app_name}")
+                                print("Updated.")
+                                break
+                        except Exception:
+                                retry_count += 1
+                                print(f"An error occurred during updating {app_name}. Retrying... ({retry_count}/{max_retries})")
+                                time.sleep(5)
 
-        if retry_count == max_retries:
-            print(f"Failed to update {app_name} after {max_retries} retries.")
-            results[app_name] = False
-        else:
-            print(f"Successfully updated {app_name}.")
-            results[app_name] = True
+                if retry_count == max_retries:
+                        print(f"Failed to update {app_name} after {max_retries} retries.")
+                        results[app_name] = False
+                else:
+                        print(f"Successfully updated {app_name}.")
+                        results[app_name] = True
 
-    return results
+        return results
 
 def stop_app(app_processes):
-    # アプリケーションを停止する
-    stopped_processes = []
-    for process in app_processes:
-        pid = process["pid"]
-        process_name = process.get("name", f"PID-{pid}")  # 事前に名前を取得
-        try:
-            psutil_process = psutil.Process(pid)
-            process_name = psutil_process.name()  # より正確な名前があれば更新
-            psutil_process.terminate()
-            stopped_processes.append(process_name)
-            print(f"Stopped {process_name}.")
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            print(f"Failed to stop {process_name}.")
+        # アプリケーションを停止する
+        stopped_processes = []
+        for process in app_processes:
+                pid = process["pid"]
+                process_name = process.get("name", f"PID-{pid}")  # 事前に名前を取得
+                try:
+                        psutil_process = psutil.Process(pid)
+                        process_name = psutil_process.name()  # より正確な名前があれば更新
+                        psutil_process.terminate()
+                        stopped_processes.append(process_name)
+                        print(f"Stopped {process_name}.")
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        print(f"Failed to stop {process_name}.")
 
-    return stopped_processes
+        return stopped_processes
 
 def get_app_startup_command(app_name, process_name):
-    """
-    manifest.json から shortcuts 定義を読み取り、起動コマンドを取得する
+        """
+        manifest.json から shortcuts 定義を読み取り、起動コマンドを取得する
     
-    Args:
-        app_name: アプリケーション名
-        process_name: プロセス名（実行ファイル名）
+        Args:
+                app_name: アプリケーション名
+                process_name: プロセス名（実行ファイル名）
     
-    Returns:
-        tuple: (実行ファイルパス, 引数リスト) または (None, None)
-    """
-    scoop_path_str = os.getenv("SCOOP")
-    if not scoop_path_str:
-        logger.error("SCOOP environment variable is not set")
-        return None, None
+        Returns:
+                tuple: (実行ファイルパス, 引数リスト) または (None, None)
+        """
+        scoop_path_str = os.getenv("SCOOP")
+        if not scoop_path_str:
+                logger.error("SCOOP environment variable is not set")
+                return None, None
     
-    scoop_path = Path(scoop_path_str)
-    manifest_path = scoop_path / "apps" / app_name / "current" / "manifest.json"
+        scoop_path = Path(scoop_path_str)
+        manifest_path = scoop_path / "apps" / app_name / "current" / "manifest.json"
     
-    if not manifest_path.exists():
-        return None, None
+        if not manifest_path.exists():
+                return None, None
     
-    try:
-        with open(manifest_path, 'r', encoding='utf-8') as f:
-            manifest = json.load(f)
+        try:
+                with open(manifest_path, 'r', encoding='utf-8') as f:
+                        manifest = json.load(f)
         
-        # shortcuts 定義を確認
-        shortcuts = manifest.get("shortcuts")
-        if not shortcuts:
-            return None, None
+                # shortcuts 定義を確認
+                shortcuts = manifest.get("shortcuts")
+                if not shortcuts:
+                        return None, None
         
-        # process_name に対応する shortcut を探す
-        for shortcut in shortcuts:
-            if not isinstance(shortcut, list) or len(shortcut) < 2:
-                continue
+                # process_name に対応する shortcut を探す
+                for shortcut in shortcuts:
+                        if not isinstance(shortcut, list) or len(shortcut) < 2:
+                                continue
             
-            # shortcut の形式: [exe_path, shortcut_name, arguments...]
-            exe_path_str = shortcut[0]
-            if not exe_path_str or not isinstance(exe_path_str, str):
-                continue
+                        # shortcut の形式: [exe_path, shortcut_name, arguments...]
+                        exe_path_str = shortcut[0]
+                        if not exe_path_str or not isinstance(exe_path_str, str):
+                                continue
             
-            # Windows パスをクロスプラットフォーム対応に変換
-            exe_path_normalized = exe_path_str.replace('\\', os.sep)
-            exe_name = Path(exe_path_normalized).name
+                        # Windows パスをクロスプラットフォーム対応に変換
+                        exe_path_normalized = exe_path_str.replace('\\', os.sep)
+                        exe_name = Path(exe_path_normalized).name
             
-            # プロセス名と一致するか確認
-            if exe_name.lower() == process_name.lower():
-                full_exe_path = scoop_path / "apps" / app_name / "current" / exe_path_normalized
-                # shortcut[2:]で引数を取得（shortcut名の後の要素）
-                args = shortcut[2:] if len(shortcut) > 2 else []
-                return full_exe_path, args
+                        # プロセス名と一致するか確認
+                        if exe_name.lower() == process_name.lower():
+                                full_exe_path = scoop_path / "apps" / app_name / "current" / exe_path_normalized
+                                # shortcut[2:]で引数を取得（shortcut名の後の要素）
+                                args = shortcut[2:] if len(shortcut) > 2 else []
+                                return full_exe_path, args
         
-        return None, None
-    except Exception as e:
-        logger.error(f"Failed to read manifest for {app_name}: {e}")
-        return None, None
+                return None, None
+        except Exception as e:
+                logger.error(f"Failed to read manifest for {app_name}: {e}")
+                return None, None
 
 def start_app(app_name, app_processes):
-    # アプリケーションを起動する
-    # manifest.json の shortcuts 定義を参照し、引数付きで起動する
-    scoop_path = Path(os.getenv("SCOOP"))
-    apps_path = scoop_path / "apps"
-    app_dir = apps_path / app_name
-    current_dir = app_dir / "current"
-    if not current_dir.exists():
-        print(f"Current directory not found for {app_name}.")
-        return
+        # アプリケーションを起動する
+        # manifest.json の shortcuts 定義を参照し、引数付きで起動する
+        scoop_path = Path(os.getenv("SCOOP"))
+        apps_path = scoop_path / "apps"
+        app_dir = apps_path / app_name
+        current_dir = app_dir / "current"
+        if not current_dir.exists():
+                print(f"Current directory not found for {app_name}.")
+                return
 
-    for process in app_processes:
-        process_name = process["name"]
+        for process in app_processes:
+                process_name = process["name"]
         
-        # manifest.json から起動コマンドを取得
-        exe_path, args = get_app_startup_command(app_name, process_name)
+                # manifest.json から起動コマンドを取得
+                exe_path, args = get_app_startup_command(app_name, process_name)
         
-        # manifest に定義がない場合は従来の方法でフォールバック
-        if exe_path is None:
-            exe_path = current_dir / process_name
-            args = []
+                # manifest に定義がない場合は従来の方法でフォールバック
+                if exe_path is None:
+                        exe_path = current_dir / process_name
+                        args = []
         
-        exe_path_str = str(exe_path)  # ここで一度変換
+                exe_path_str = str(exe_path)  # ここで一度変換
         
-        if not os.path.exists(exe_path_str):
-            print(f"Executable not found: {exe_path_str}")
-            continue
+                if not os.path.exists(exe_path_str):
+                        print(f"Executable not found: {exe_path_str}")
+                        continue
 
-        try:
-            # 実行ファイルパスと引数を結合してコマンドを構築
-            command = [exe_path_str] + args
-            subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            if args:
-                print(f"Started {exe_path_str} with arguments: {' '.join(args)}")
-            else:
-                print(f"Started {exe_path_str}.")
-        except Exception as e:
-            print(f"Failed to start {exe_path_str}: {e}")
+                try:
+                        # 実行ファイルパスと引数を結合してコマンドを構築
+                        command = [exe_path_str] + args
+                        subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        if args:
+                                print(f"Started {exe_path_str} with arguments: {' '.join(args)}")
+                        else:
+                                print(f"Started {exe_path_str}.")
+                except Exception as e:
+                        print(f"Failed to start {exe_path_str}: {e}")
 
 
 def run(github_issue, hostname) -> None:
-    try:
-        # OS EOL 情報を取得
-        os_eol_info, is_critical = get_os_eol_info()
-        
-        # Set initial status to running
-        github_issue.atomic_update_with_retry(
-            computer_name=hostname,
-            package_manager="scoop",
-            upgraded="",
-            failed="",
-            status="running",
-            os_eol=os_eol_info,
-            os_eol_critical=is_critical,
-        )
-
-        update_scoop_repos()
-
-        status_results = get_scoop_status()
-        post_github_comment(github_issue, hostname, status_results)
-        upgrade_app_names = [app["name"] for app in status_results]
-
-        running_app_processes = get_running_apps(upgrade_app_names)
-        not_running_apps = [app for app in upgrade_app_names if app not in running_app_processes]
-
-        print(f"Running applications: {len(running_app_processes)}")
-        print(f"Not running applications: {len(not_running_apps)}")
-
-        # Update status before starting upgrades
-        github_issue.atomic_update_with_retry(
-            computer_name=hostname,
-            package_manager="scoop",
-            upgraded=str(len(not_running_apps)),
-            failed="",
-            status="running",
-            os_eol=os_eol_info,
-            os_eol_critical=is_critical,
-        )
-
-        print("Updating not running applications...")
-        not_running_apps_results = update_scoop_apps(not_running_apps)
-
-        running_apps_results = {}
-        print("Updating running applications...")
-        for app_name, app_processes in running_app_processes.items():
-            print(f"The following applications are running: {app_name}")
-            print(app_processes)
-            response = input("Do you want to update? [Y/n]: ")
-            if response.lower() in ["y", ""]:
-                stop_app(app_processes)
-                result = update_scoop_apps([app_name])
-                start_app(app_name, app_processes)
-                running_apps_results[app_name] = result[app_name]
-
-        merged_results = {**not_running_apps_results, **running_apps_results}
-        success_count = sum(1 for result in merged_results.values() if result)
-        failed_count = len(merged_results) - success_count
-
-        status = "success" if failed_count == 0 else "failed"
-
-        # Set final status atomically
-        github_issue.atomic_update_with_retry(
-            computer_name=hostname,
-            package_manager="scoop",
-            upgraded=str(success_count),
-            failed=str(failed_count),
-            status=status,
-            os_eol=os_eol_info,
-            os_eol_critical=is_critical,
-        )
-
-        upgraded_status_results = get_scoop_status()
-        print("Failed upgrade applications:")
-        for app in upgraded_status_results:
-              print(f" - {app['name']}")
-        print("Scoop update completed.")
-    except Exception as e:
-        logger.error(f"An error occurred during the upgrade: {e}")
-        logger.error(traceback.format_exc())
-        
-        # OS EOL 情報を取得 (エラー時も含める)
         try:
-            os_eol_info, is_critical = get_os_eol_info()
-        except Exception:
-            os_eol_info = "不明"
-            is_critical = False
+                # OS EOL 情報を取得
+                os_eol_info, is_critical = get_os_eol_info()
         
-        # Set error status atomically
-        github_issue.atomic_update_with_retry(
-            computer_name=hostname,
-            package_manager="scoop",
-            upgraded="",
-            failed="",
-            status="failed",
-            os_eol=os_eol_info,
-            os_eol_critical=is_critical,
-        )
+                # Set initial status to running
+                github_issue.atomic_update_with_retry(
+                        computer_name=hostname,
+                        package_manager="scoop",
+                        upgraded="",
+                        failed="",
+                        status="running",
+                        os_eol=os_eol_info,
+                        os_eol_critical=is_critical,
+                )
+
+                update_scoop_repos()
+
+                status_results = get_scoop_status()
+                post_github_comment(github_issue, hostname, status_results)
+                upgrade_app_names = [app["name"] for app in status_results]
+
+                running_app_processes = get_running_apps(upgrade_app_names)
+                not_running_apps = [app for app in upgrade_app_names if app not in running_app_processes]
+
+                print(f"Running applications: {len(running_app_processes)}")
+                print(f"Not running applications: {len(not_running_apps)}")
+
+                # Update status before starting upgrades
+                github_issue.atomic_update_with_retry(
+                        computer_name=hostname,
+                        package_manager="scoop",
+                        upgraded=str(len(not_running_apps)),
+                        failed="",
+                        status="running",
+                        os_eol=os_eol_info,
+                        os_eol_critical=is_critical,
+                )
+
+                print("Updating not running applications...")
+                not_running_apps_results = update_scoop_apps(not_running_apps)
+
+                running_apps_results = {}
+                print("Updating running applications...")
+                for app_name, app_processes in running_app_processes.items():
+                        print(f"The following applications are running: {app_name}")
+                        print(app_processes)
+                        response = input("Do you want to update? [Y/n]: ")
+                        if response.lower() in ["y", ""]:
+                                stop_app(app_processes)
+                                result = update_scoop_apps([app_name])
+                                start_app(app_name, app_processes)
+                                running_apps_results[app_name] = result[app_name]
+
+                merged_results = {**not_running_apps_results, **running_apps_results}
+                success_count = sum(1 for result in merged_results.values() if result)
+                failed_count = len(merged_results) - success_count
+
+                status = "success" if failed_count == 0 else "failed"
+
+                # Set final status atomically
+                github_issue.atomic_update_with_retry(
+                        computer_name=hostname,
+                        package_manager="scoop",
+                        upgraded=str(success_count),
+                        failed=str(failed_count),
+                        status=status,
+                        os_eol=os_eol_info,
+                        os_eol_critical=is_critical,
+                )
+
+                upgraded_status_results = get_scoop_status()
+                print("Failed upgrade applications:")
+                for app in upgraded_status_results:
+                            print(f" - {app['name']}")
+                print("Scoop update completed.")
+        except Exception as e:
+                logger.error(f"An error occurred during the upgrade: {e}")
+                logger.error(traceback.format_exc())
+        
+                # OS EOL 情報を取得 (エラー時も含める)
+                try:
+                        os_eol_info, is_critical = get_os_eol_info()
+                except Exception:
+                        os_eol_info = "不明"
+                        is_critical = False
+        
+                # Set error status atomically
+                github_issue.atomic_update_with_retry(
+                        computer_name=hostname,
+                        package_manager="scoop",
+                        upgraded="",
+                        failed="",
+                        status="failed",
+                        os_eol=os_eol_info,
+                        os_eol_critical=is_critical,
+                )
