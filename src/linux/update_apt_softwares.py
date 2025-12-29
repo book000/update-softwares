@@ -12,7 +12,6 @@ from .. import is_root
 logger = logging.getLogger(__name__)
 
 # Parse apt-get -s -V dist-upgrade output to avoid python-apt dependency.
-# Parse apt-get -s -V dist-upgrade output to avoid python-apt dependency.
 # candidate captures only the version (e.g. "1.1-1") and ignores repo metadata.
 _INST_RE = re.compile(r"^Inst\s+(?P<name>\S+)(?:\s+\[(?P<installed>[^\]]+)\])?\s+\((?P<candidate>[^\s\)]+)")
 _REMV_RE = re.compile(r"^Remv\s+(?P<name>\S+)(?:\s+\[(?P<installed>[^\]]+)\])?")
@@ -20,34 +19,41 @@ _SUMMARY_UPGRADE_RE = re.compile(r"^\s*(?P<name>\S+)\s+\((?P<installed>[^)]+?)\s
 
 
 def _is_installed_version(value):
-  if not value:
-    return False
-  normalized = value.strip().lower()
-  return normalized not in ("not installed", "not-installed", "none", "unknown")
+    if not value:
+        return False
+    normalized = value.strip().lower()
+    return normalized not in ("not installed", "not-installed", "none", "unknown")
 
 
 def _log_apt_stderr(stderr, context):
-  if not stderr:
-    return
-  for line in stderr.splitlines():
-    stripped = line.strip()
-    if not stripped:
-      continue
-    if stripped.startswith("E:"):
-      logger.error("%s stderr: %s", context, stripped)
-    elif stripped.startswith("W:"):
-      logger.warning("%s stderr: %s", context, stripped)
-    else:
-      logger.debug("%s stderr: %s", context, stripped)
+    if not stderr:
+        return
+    for line in stderr.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("E:"):
+            logger.error("%s stderr: %s", context, stripped)
+        elif stripped.startswith("W:"):
+            logger.warning("%s stderr: %s", context, stripped)
+        else:
+            logger.debug("%s stderr: %s", context, stripped)
 
 
 def run_apt_update() -> str:
-    result = subprocess.run(
-        ["apt-get", "update"],
-        check=True,
-        text=True,
-        capture_output=True,
-    )
+    try:
+        result = subprocess.run(
+            ["apt-get", "update"],
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError as e:
+        logger.error("apt-get update failed: %s", e)
+        if e.stdout:
+            logger.debug("apt-get update stdout:\n%s", e.stdout)
+        _log_apt_stderr(e.stderr, "apt-get update")
+        raise
     if result.stdout:
         logger.debug("apt-get update stdout:\n%s", result.stdout)
     _log_apt_stderr(result.stderr, "apt-get update")
@@ -55,12 +61,19 @@ def run_apt_update() -> str:
 
 
 def get_apt_full_upgrade_target():
-    result = subprocess.run(
-        ["apt-get", "-s", "-V", "dist-upgrade"],
-        check=True,
-        text=True,
-        capture_output=True,
-    )
+    try:
+        result = subprocess.run(
+            ["apt-get", "-s", "-V", "dist-upgrade"],
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError as e:
+        logger.error("apt-get dist-upgrade simulation failed: %s", e)
+        if e.stdout:
+            logger.debug("apt-get -s -V dist-upgrade stdout:\n%s", e.stdout)
+        _log_apt_stderr(e.stderr, "apt-get -s -V dist-upgrade")
+        raise
     if result.stdout:
         logger.debug("apt-get -s -V dist-upgrade stdout:\n%s", result.stdout)
     _log_apt_stderr(result.stderr, "apt-get -s -V dist-upgrade")
