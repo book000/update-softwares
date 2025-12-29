@@ -17,14 +17,21 @@ class TestMainOSValidation(unittest.TestCase):
         self.log_capture = []
         self.handler = logging.Handler()
         self.handler.emit = lambda record: self.log_capture.append(record.getMessage())
-        logging.getLogger().addHandler(self.handler)
-        logging.getLogger().setLevel(logging.INFO)
+        self.root_logger = logging.getLogger()
+        self.initial_handlers = list(self.root_logger.handlers)
+        self.root_logger.addHandler(self.handler)
+        self.root_logger.setLevel(logging.INFO)
         self.tempdir = tempfile.TemporaryDirectory()
         os.environ["UPDATE_SOFTWARES_LOG_DIR"] = self.tempdir.name
     
     def tearDown(self):
         """Clean up test environment"""
-        logging.getLogger().removeHandler(self.handler)
+        for handler in list(self.root_logger.handlers):
+            self.root_logger.removeHandler(handler)
+            if hasattr(handler, "close"):
+                handler.close()
+        for handler in self.initial_handlers:
+            self.root_logger.addHandler(handler)
         self.log_capture = []
         self.tempdir.cleanup()
         os.environ.pop("UPDATE_SOFTWARES_LOG_DIR", None)
@@ -171,4 +178,8 @@ class TestLoggingSetup(unittest.TestCase):
                     contents = f.read()
                 self.assertIn("test log message", contents)
             finally:
+                for handler in list(root_logger.handlers):
+                    root_logger.removeHandler(handler)
+                    if hasattr(handler, "close"):
+                        handler.close()
                 os.environ.pop("UPDATE_SOFTWARES_LOG_DIR", None)
