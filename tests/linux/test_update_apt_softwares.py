@@ -104,24 +104,24 @@ class TestUpdateAptSoftwares(unittest.TestCase):
     self.assertEqual(len(to_remove), 0)
 
   # 正常系: インストール対象や削除対象のパッケージがある場合
-    @patch("subprocess.run")
-    def test_get_apt_full_upgrade_target_with_install_and_remove(self, mock_run):
-        mock_result = MagicMock()
-        mock_result.stdout = "\n".join(
-            [
-                "Inst libfoo [1.0-1] (1.1-1 Ubuntu:20.04 focal-updates [amd64])",
-                "Inst newpkg (2.0-1 Ubuntu:20.04 focal-updates [amd64])",
-                "Remv oldpkg [0.9-1]",
-            ]
-        )
-        mock_run.return_value = mock_result
+  @patch("subprocess.run")
+  def test_get_apt_full_upgrade_target_with_install_and_remove(self, mock_run):
+    mock_result = MagicMock()
+    mock_result.stdout = "\n".join(
+      [
+        "Inst libfoo [1.0-1] (1.1-1 Ubuntu:20.04 focal-updates [amd64])",
+        "Inst newpkg (2.0-1 Ubuntu:20.04 focal-updates [amd64])",
+        "Remv oldpkg [0.9-1]",
+      ]
+    )
+    mock_run.return_value = mock_result
 
-        cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target()
+    cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target()
 
-        self.assertIsNone(cache)
-        self.assertEqual(len(to_upgrade), 1)
-        self.assertEqual(len(to_install), 1)
-        self.assertEqual(len(to_remove), 1)
+    self.assertIsNone(cache)
+    self.assertEqual(len(to_upgrade), 1)
+    self.assertEqual(len(to_install), 1)
+    self.assertEqual(len(to_remove), 1)
 
     @patch("src.linux.update_apt_softwares.logger")
     @patch("subprocess.run")
