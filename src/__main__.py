@@ -44,6 +44,15 @@ def setup_logging():
   ):
     return log_path
   if file_handler and getattr(file_handler, "baseFilename", None) == log_path_abs:
+    if not stream_handler:
+      for handler in list(root_logger.handlers):
+        if (
+          isinstance(handler, logging.StreamHandler)
+          and handler is not file_handler
+          and not isinstance(handler, logging.FileHandler)
+        ):
+          root_logger.removeHandler(handler)
+          handler.close()
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     stream_handler = logging.StreamHandler()
     stream_handler.name = "update-softwares-stream"
