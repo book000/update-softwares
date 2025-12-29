@@ -164,21 +164,26 @@ class TestLoggingSetup(unittest.TestCase):
                 handler.close()
 
     def test_setup_logging_writes_file(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            os.environ["UPDATE_SOFTWARES_LOG_DIR"] = tmpdir
-            try:
-                log_path = setup_logging()
-                logging.info("test log message")
-                for handler in self.root_logger.handlers:
-                    if hasattr(handler, "flush"):
-                        handler.flush()
+        tmpdir = tempfile.TemporaryDirectory()
+        os.environ["UPDATE_SOFTWARES_LOG_DIR"] = tmpdir.name
+        try:
+            log_path = setup_logging()
+            logging.info("test log message")
+            for handler in self.root_logger.handlers:
+                if hasattr(handler, "flush"):
+                    handler.flush()
 
-                self.assertTrue(os.path.exists(log_path))
-                with open(log_path, "r", encoding="utf-8") as f:
-                    contents = f.read()
-                self.assertIn("test log message", contents)
-            finally:
-                os.environ.pop("UPDATE_SOFTWARES_LOG_DIR", None)
+            self.assertTrue(os.path.exists(log_path))
+            with open(log_path, "r", encoding="utf-8") as f:
+                contents = f.read()
+            self.assertIn("test log message", contents)
+        finally:
+            os.environ.pop("UPDATE_SOFTWARES_LOG_DIR", None)
+            for handler in list(self.root_logger.handlers):
+                self.root_logger.removeHandler(handler)
+                if hasattr(handler, "close"):
+                    handler.close()
+            tmpdir.cleanup()
 
 
 if __name__ == "__main__":
