@@ -31,6 +31,7 @@ class TestMainOSValidation(unittest.TestCase):
     try:
       self.tempdir.cleanup()
     except OSError:
+      # On Windows, cleanup can fail if a handler still holds the file.
       pass
     self.tempdir = None
 
@@ -196,6 +197,7 @@ class TestLoggingSetup(unittest.TestCase):
       try:
         tmpdir.cleanup()
       except OSError:
+        # On Windows, cleanup can fail if a handler still holds the file.
         pass
 
 

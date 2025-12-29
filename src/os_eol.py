@@ -208,18 +208,24 @@ def get_os_eol_date_from_api(os_name: str, version: str, max_retries: int = 3) -
       if response.status_code == 200:
         data = response.json()
         eol_str = data.get('eol')
-                
-        if eol_str:
-          # eol は YYYY-MM-DD 形式または boolean
-          if isinstance(eol_str, str):
-            try:
-              return datetime.strptime(eol_str, '%Y-%m-%d')
-            except ValueError:
-              logger.warning(f"Failed to parse EOL date: {eol_str}")
-              return None
-          elif isinstance(eol_str, bool) and not eol_str:
+
+        # eol は YYYY-MM-DD 形式または boolean
+        if isinstance(eol_str, bool):
+          if not eol_str:
             # False の場合はまだ EOL していない（日付不明）
             return None
+          logger.warning(f"Unexpected boolean EOL value: {eol_str}")
+          return None
+        if not eol_str:
+          return None
+        if isinstance(eol_str, str):
+          try:
+            return datetime.strptime(eol_str, '%Y-%m-%d')
+          except ValueError:
+            logger.warning(f"Failed to parse EOL date: {eol_str}")
+            return None
+        logger.warning(f"Unexpected EOL value type: {type(eol_str)}")
+        return None
       elif response.status_code == 404:
         # 404 は API にデータがないことを示すのでリトライ不要
         return None
