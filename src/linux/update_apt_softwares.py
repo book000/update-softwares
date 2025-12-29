@@ -1,7 +1,8 @@
 import os
+import re
+import subprocess
 import textwrap
 import time
-import apt
 import logging
 from .. import GitHubIssue # required by tests
 from ..os_eol import get_os_eol_info
@@ -10,26 +11,102 @@ from .. import is_root
 
 logger = logging.getLogger(__name__)
 
-def run_apt_update() -> apt.Cache:
-    cache = apt.Cache()
-    cache.update()
-    cache.open(None)
+# Parse apt-get -s -V dist-upgrade output to avoid python-apt dependency.
+_INST_RE = re.compile(r"^Inst\s+(?P<name>\S+)(?:\s+\[(?P<installed>[^\]]+)\])?\s+\((?P<candidate>[^\s\)]+)")
+_REMV_RE = re.compile(r"^Remv\s+(?P<name>\S+)(?:\s+\[(?P<installed>[^\]]+)\])?")
+_SUMMARY_UPGRADE_RE = re.compile(r"^\s*(?P<name>\S+)\s+\((?P<installed>[^)]+?)\s+=>\s+(?P<candidate>[^)]+?)\)")
 
-    return cache
 
-def get_apt_full_upgrade_target(cache):
-    cache.upgrade(dist_upgrade=True)
+def _is_installed_version(value):
+    if not value:
+        return False
+    normalized = value.strip().lower()
+    return normalized not in ("not installed", "not-installed", "none")
 
-    changes = cache.get_changes()
-    if not changes:
-        return cache, [], [], []
 
-    # アップグレード・インストール・削除されるパッケージを分類
-    to_upgrade = [pkg for pkg in changes if pkg.is_upgradable]
-    to_install = [pkg for pkg in changes if not pkg.is_installed]
-    to_remove = [pkg for pkg in cache if pkg.marked_delete]
+def run_apt_update() -> str:
+    result = subprocess.run(
+        ["apt-get", "update"],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    if result.stdout:
+        logger.debug("apt-get update stdout:\n%s", result.stdout)
+    if result.stderr:
+        logger.debug("apt-get update stderr:\n%s", result.stderr)
+    return result.stdout
 
-    return cache, to_upgrade, to_install, to_remove
+
+def get_apt_full_upgrade_target(_cache=None):
+    result = subprocess.run(
+        ["apt-get", "-s", "-V", "dist-upgrade"],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    if result.stdout:
+        logger.debug("apt-get -s -V dist-upgrade stdout:\n%s", result.stdout)
+    if result.stderr:
+        logger.debug("apt-get -s -V dist-upgrade stderr:\n%s", result.stderr)
+
+    to_upgrade = []
+    to_install = []
+    to_remove = []
+
+    summary_upgrades = []
+    in_upgrade_summary = False
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if line.startswith("The following packages will be upgraded:"):
+            in_upgrade_summary = True
+            continue
+        if in_upgrade_summary:
+            if not line:
+                in_upgrade_summary = False
+                continue
+            match = _SUMMARY_UPGRADE_RE.match(line)
+            if match:
+                summary_upgrades.append(
+                    {
+                        "name": match.group("name"),
+                        "installed": match.group("installed"),
+                        "candidate": match.group("candidate"),
+                    }
+                )
+            continue
+        if line.startswith("Inst "):
+            match = _INST_RE.match(line)
+            if not match:
+                continue
+            name = match.group("name")
+            installed = match.group("installed")
+            candidate = match.group("candidate")
+            entry = {
+                "name": name,
+                "installed": installed,
+                "candidate": candidate,
+            }
+            if _is_installed_version(installed):
+                to_upgrade.append(entry)
+            else:
+                to_install.append(entry)
+        elif line.startswith("Remv "):
+            match = _REMV_RE.match(line)
+            if not match:
+                continue
+            installed = match.group("installed") or "unknown"
+            to_remove.append(
+                {
+                    "name": match.group("name"),
+                    "installed": installed,
+                }
+            )
+
+    if not to_upgrade and summary_upgrades:
+        to_upgrade = summary_upgrades
+
+    return None, to_upgrade, to_install, to_remove
 
 def run_apt_full_upgrade() -> bool:
     try:
@@ -63,9 +140,18 @@ def post_github_comment(github_issue, hostname, to_upgrade, to_install, to_remov
     {to_remove_list}
     """).strip()
 
-    to_upgrade_list = "\n".join([f"- `{pkg.name}` (`{pkg.installed.version}` -> `{pkg.candidate.version}`)" for pkg in to_upgrade])
-    to_install_list = "\n".join([f"- `{pkg.name}` (`{pkg.candidate.version}`)" for pkg in to_install])
-    to_remove_list = "\n".join([f"- `{pkg.name}` (`{pkg.installed.version}`)" for pkg in to_remove])
+    to_upgrade_list = "\n".join(
+        [
+            f"- `{pkg['name']}` (`{pkg['installed']}` -> `{pkg['candidate']}`)"
+            for pkg in to_upgrade
+        ]
+    )
+    to_install_list = "\n".join(
+        [f"- `{pkg['name']}` (`{pkg['candidate']}`)" for pkg in to_install]
+    )
+    to_remove_list = "\n".join(
+        [f"- `{pkg['name']}` (`{pkg['installed']}`)" for pkg in to_remove]
+    )
     comment_body = comment_body.format(
         markdown_computer_name=github_issue.get_markdown_computer_name(hostname),
         to_upgrade=len(to_upgrade),

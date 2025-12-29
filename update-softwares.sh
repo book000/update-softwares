@@ -47,4 +47,5 @@ else
   git pull
 fi
 
+export UPDATE_SOFTWARES_LOG_DIR=/opt/update-softwares/logs
 python3 -m src "$ISSUE_NUMBER"

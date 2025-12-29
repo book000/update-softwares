@@ -1,10 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
-import sys
+from subprocess import CalledProcessError
 import os
-
-# Mock apt module to prevent import errors in CI environments
-sys.modules['apt'] = MagicMock()
 
 from src.linux.update_apt_softwares import is_root, run_apt_update, get_apt_full_upgrade_target, run_apt_full_upgrade
 
@@ -22,86 +19,106 @@ class TestUpdateAptSoftwares(unittest.TestCase):
         self.assertFalse(is_root())
 
     # 正常系: aptのキャッシュ更新
-    @patch("apt.Cache")
-    def test_run_apt_update(self, mock_cache):
-        mock_cache_instance = MagicMock()
-        mock_cache.return_value = mock_cache_instance
+    @patch("subprocess.run")
+    def test_run_apt_update(self, mock_run):
+        mock_result = MagicMock()
+        mock_result.stdout = "Fetched 0 B"
+        mock_run.return_value = mock_result
 
-        cache = run_apt_update()
+        output = run_apt_update()
 
-        mock_cache_instance.update.assert_called_once()
-        mock_cache_instance.open.assert_called_once_with(None)
-        self.assertEqual(cache, mock_cache_instance)
+        mock_run.assert_called_once_with(
+            ["apt-get", "update"],
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(output, "Fetched 0 B")
 
     # 異常系: aptキャッシュ更新の失敗
-    @patch("apt.Cache")
-    def test_run_apt_update_failure(self, mock_cache):
-        mock_cache_instance = MagicMock()
-        mock_cache.return_value = mock_cache_instance
-        mock_cache_instance.update.side_effect = Exception("Update failed")
+    @patch("subprocess.run")
+    def test_run_apt_update_failure(self, mock_run):
+        mock_run.side_effect = CalledProcessError(1, ["apt-get", "update"])
 
-        with self.assertRaises(Exception) as context:
+        with self.assertRaises(CalledProcessError):
             run_apt_update()
 
-        self.assertEqual(str(context.exception), "Update failed")
-
     # 正常系: アップグレード対象のパッケージ取得
-    @patch("apt.Cache")
-    def test_get_apt_full_upgrade_target(self, mock_cache):
-        mock_cache_instance = MagicMock()
-        mock_cache.return_value = mock_cache_instance
+    @patch("subprocess.run")
+    def test_get_apt_full_upgrade_target(self, mock_run):
+        mock_result = MagicMock()
+        mock_result.stdout = "\n".join(
+            [
+                "Inst libfoo [1.0-1] (1.1-1 Ubuntu:20.04 focal-updates [amd64])",
+                "Inst newpkg (2.0-1 Ubuntu:20.04 focal-updates [amd64])",
+                "Remv oldpkg [0.9-1]",
+            ]
+        )
+        mock_run.return_value = mock_result
 
-        mock_package = MagicMock()
-        mock_package.is_upgradable = True
-        mock_cache_instance.get_changes.return_value = [mock_package]
+        cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target(None)
 
-        cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target(mock_cache_instance)
-
+        self.assertIsNone(cache)
         self.assertEqual(len(to_upgrade), 1)
-        self.assertEqual(len(to_install), 0)
-        self.assertEqual(len(to_remove), 0)
+        self.assertEqual(to_upgrade[0]["name"], "libfoo")
+        self.assertEqual(len(to_install), 1)
+        self.assertEqual(to_install[0]["name"], "newpkg")
+        self.assertEqual(len(to_remove), 1)
+        self.assertEqual(to_remove[0]["name"], "oldpkg")
 
     # 正常系: アップグレード対象がない場合の確認
-    @patch("apt.Cache")
-    def test_get_apt_full_upgrade_target_no_upgrades(self, mock_cache):
-        mock_cache_instance = MagicMock()
-        mock_cache.return_value = mock_cache_instance
+    @patch("subprocess.run")
+    def test_get_apt_full_upgrade_target_no_upgrades(self, mock_run):
+        mock_result = MagicMock()
+        mock_result.stdout = "Reading package lists... Done"
+        mock_run.return_value = mock_result
 
-        mock_cache_instance.get_changes.return_value = []
+        cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target(None)
 
-        cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target(mock_cache_instance)
-
+        self.assertIsNone(cache)
         self.assertEqual(len(to_upgrade), 0)
         self.assertEqual(len(to_install), 0)
         self.assertEqual(len(to_remove), 0)
 
+    @patch("subprocess.run")
+    def test_get_apt_full_upgrade_target_summary_fallback(self, mock_run):
+        mock_result = MagicMock()
+        mock_result.stdout = "\n".join(
+            [
+                "The following packages will be upgraded:",
+                "   apparmor (3.0.4-2ubuntu2.4 => 3.0.4-2ubuntu2.5)",
+                "   gh (2.83.1 => 2.83.2)",
+                "",
+                "25 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.",
+            ]
+        )
+        mock_run.return_value = mock_result
+
+        cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target(None)
+
+        self.assertIsNone(cache)
+        self.assertEqual(len(to_upgrade), 2)
+        self.assertEqual(to_upgrade[0]["name"], "apparmor")
+        self.assertEqual(to_upgrade[1]["candidate"], "2.83.2")
+        self.assertEqual(len(to_install), 0)
+        self.assertEqual(len(to_remove), 0)
+
     # 正常系: インストール対象や削除対象のパッケージがある場合
-    @patch("apt.Cache")
-    def test_get_apt_full_upgrade_target_with_install_and_remove(self, mock_cache):
-        mock_cache_instance = MagicMock()
-        mock_cache.return_value = mock_cache_instance
+    @patch("subprocess.run")
+    def test_get_apt_full_upgrade_target_with_install_and_remove(self, mock_run):
+        mock_result = MagicMock()
+        mock_result.stdout = "\n".join(
+            [
+                "Inst libfoo [1.0-1] (1.1-1 Ubuntu:20.04 focal-updates [amd64])",
+                "Inst newpkg (2.0-1 Ubuntu:20.04 focal-updates [amd64])",
+                "Remv oldpkg [0.9-1]",
+            ]
+        )
+        mock_run.return_value = mock_result
 
-        mock_package_upgrade = MagicMock()
-        mock_package_upgrade.is_upgradable = True
-        mock_package_upgrade.marked_delete = False
+        cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target(None)
 
-        mock_package_install = MagicMock()
-        mock_package_install.is_upgradable = False
-        mock_package_install.marked_install = True
-        mock_package_install.is_installed = False
-        mock_package_install.marked_delete = False
-
-        mock_package_remove = MagicMock()
-        mock_package_remove.is_upgradable = False
-        mock_package_remove.marked_delete = True
-
-        mock_cache_instance.get_changes.return_value = [
-            mock_package_upgrade, mock_package_install, mock_package_remove
-        ]
-        mock_cache_instance.__iter__.return_value = [mock_package_upgrade, mock_package_install, mock_package_remove]
-
-        cache, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target(mock_cache_instance)
-
+        self.assertIsNone(cache)
         self.assertEqual(len(to_upgrade), 1)
         self.assertEqual(len(to_install), 1)
         self.assertEqual(len(to_remove), 1)
