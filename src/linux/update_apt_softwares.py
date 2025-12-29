@@ -85,8 +85,8 @@ def get_apt_full_upgrade_target():
   summary_upgrades = []
   in_upgrade_summary = False
   parse_failures = 0
-  for line in result.stdout.splitlines():
-    line = line.strip()
+  for raw_line in result.stdout.splitlines():
+    line = raw_line.strip()
     if line.startswith("Inst "):
       match = _INST_RE.match(line)
       if not match:
@@ -127,19 +127,23 @@ def get_apt_full_upgrade_target():
       if not line:
         in_upgrade_summary = False
         continue
-      match = _SUMMARY_UPGRADE_RE.match(line)
-      if match:
-        summary_upgrades.append(
-          {
-            "name": match.group("name"),
-            "installed": match.group("installed"),
-            "candidate": match.group("candidate"),
-          }
-        )
+      if raw_line and not raw_line.startswith(" "):
+        # Summary blocks are indented; a non-indented line ends the block.
+        in_upgrade_summary = False
       else:
-        parse_failures += 1
-        logger.debug("Failed to parse apt-get summary line: %s", line)
-      continue
+        match = _SUMMARY_UPGRADE_RE.match(line)
+        if match:
+          summary_upgrades.append(
+            {
+              "name": match.group("name"),
+              "installed": match.group("installed"),
+              "candidate": match.group("candidate"),
+            }
+          )
+        else:
+          parse_failures += 1
+          logger.debug("Failed to parse apt-get summary line: %s", line)
+        continue
   if parse_failures:
     logger.warning("Failed to parse %d apt-get lines", parse_failures)
   if not to_upgrade and not to_install and summary_upgrades:
