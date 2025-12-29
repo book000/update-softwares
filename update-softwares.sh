@@ -36,8 +36,8 @@ fi
 check_command git
 check_command python3
 
-mkdir -p /opt/update-softwares
-chmod 777 /opt/update-softwares
+install -d -m 755 /opt/update-softwares
+install -d -m 700 /opt/update-softwares/logs
 cd /opt/update-softwares || exit 1
 
 # clone repository
@@ -47,4 +47,5 @@ else
   git pull
 fi
 
+export UPDATE_SOFTWARES_LOG_DIR=/opt/update-softwares/logs
 python3 -m src "$ISSUE_NUMBER"

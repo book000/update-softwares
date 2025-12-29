@@ -24,6 +24,7 @@ $projectPath = Join-Path $userFolder "update-softwares"
 
 New-Item -ItemType Directory -Force -Path $projectPath | Out-Null
 Set-Location -Path $projectPath -ErrorAction Stop
+$env:UPDATE_SOFTWARES_LOG_DIR = Join-Path $projectPath "logs"
 
 # clone repository
 if (-not (Test-Path "$projectPath\.git")) {
