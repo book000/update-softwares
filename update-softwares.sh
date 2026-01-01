@@ -47,5 +47,12 @@ else
   git pull
 fi
 
+# create venv and install requirements
+if [ ! -d /opt/calculate-storage/venv ]; then
+  python3 -mvenv venv
+fi
+
+venv/bin/pip install -r requirements.txt
+
 export UPDATE_SOFTWARES_LOG_DIR=/opt/update-softwares/logs
-python3 -m src "$ISSUE_NUMBER"
+venv/bin/python3  -m src "$ISSUE_NUMBER"
