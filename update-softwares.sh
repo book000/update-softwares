@@ -48,7 +48,7 @@ else
 fi
 
 # create venv and install requirements
-if [ ! -d /opt/calculate-storage/venv ]; then
+if [ ! -d /opt/update-softwares/venv ]; then
   python3 -mvenv venv
 fi
 
