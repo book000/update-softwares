@@ -1,4 +1,21 @@
-# GitHub Copilot Instructions
+# Gemini CLI 作業方針
+
+## 目的
+
+このドキュメントは、Gemini CLI 向けのコンテキストと作業方針を定義します。
+
+## 出力スタイル
+
+- 言語: 日本語
+- トーン: プロフェッショナル、明確、簡潔
+- 形式: マークダウン
+
+## 共通ルール
+
+- 会話は日本語で行う。
+- コミットは Conventional Commits に従う。`<description>` は日本語で記載する。
+  - 形式: `<type>: <description>` (例: `feat: ユーザー認証機能を追加`)
+- 日本語と英数字の間には半角スペースを入れる。
 
 ## プロジェクト概要
 
@@ -10,33 +27,14 @@
   - アトミック更新メカニズム (並行実行時の競合防止)
   - OS の End-of-Life (EOL) 情報の取得と表示
   - ログ機能 (ファイルとコンソール出力)
-- 対象ユーザー: Linux / Windows マシンを複数管理する開発者・システム管理者
-
-## 共通ルール
-
-- 会話は日本語で行う。
-- PR とコミットは Conventional Commits に従う。`<description>` は日本語で記載する。
-  - 形式: `<type>: <description>` (例: `feat: ユーザー認証機能を追加`)
-- 日本語と英数字の間には半角スペースを入れる。
-- コード内のコメントは日本語で記載する。
-- エラーメッセージは英語で記載する。
-
-## 技術スタック
-
-- 言語: Python 3.12+ が最適 (テスト対象: 3.8-3.13)
-- パッケージマネージャー: pip
-- 主要な依存関係:
-  - requests==2.32.4 (GitHub API 通信、endoflife.date API 呼び出し)
-  - psutil==7.2.1 (Windows プロセス管理)
-- テストフレームワーク: unittest (標準ライブラリ)
-- CI/CD: GitHub Actions (Linux CI, Windows CI)
 
 ## コーディング規約
 
 - Python 命名規則に従う (snake_case)
 - 関数・クラスには docstring を日本語で記載する (GoogleStyle または JSDoc 形式)
 - .editorconfig に従う (UTF-8, LF, 2 スペースインデント)
-- 正式なリンティング設定はないが、既存コードスタイルに従う
+- コメント言語: 日本語
+- エラーメッセージ言語: 英語
 
 ## 開発コマンド
 
@@ -57,33 +55,21 @@ python3 -m unittest discover -s tests/windows -p "test_*.py"
 python3 -m src <ISSUE_NUMBER>
 ```
 
-## テスト方針
-
-- テストフレームワーク: unittest (標準ライブラリ)
-- 包括的なモッキング: requests, subprocess, os.system などはモック化する
-- プラットフォーム分離: Linux/Windows テストは分離する
-- テストマーカー: slow (約 25 秒の Windows テスト), integration, unit
-- テスト実行時のキャンセルは避ける (特に Windows テスト)
-
-## セキュリティ / 機密情報
+## 注意事項
 
 - GitHub トークンは `data/github_token.txt` で管理し、Git にコミットしない。
 - ログに個人情報や認証情報を出力しない。
 - センシティブな情報をコードに含めない。
-
-## ドキュメント更新
-
-以下のドキュメントは変更時に更新する:
-
-- README.md: プロジェクト概要、セットアップ手順、使い方
-- requirements.txt: 依存関係の追加・削除時
+- プロジェクトの既存ルールを優先する。
+- 既知の制約:
+  - GitHub トークン必須 (`data/github_token.txt`)
+  - Linux: root 権限必須 (apt-get 操作のため)
+  - Windows: scoop インストール必須
+  - GitHub Issue 形式要件 (markdown テーブル + コメント)
 
 ## リポジトリ固有
 
-- **GitHub トークン必須**: `data/github_token.txt` に有効なトークンを記載する。
-- **Linux: root 権限必須**: apt-get 操作のため。
-- **Windows: scoop インストール必須**: scoop コマンドを使用する。
-- **GitHub Issue 形式要件**: Issue 本文に markdown テーブルを含み、各行末に `<!-- update-softwares#hostname#package_manager -->` コメントを含む必要がある。
+- **技術スタック**: Python 3.12+, pip, requests==2.32.4, psutil==7.2.1, unittest
 - **Renovate 統合**: 外部テンプレート使用 (`github>book000/templates//renovate/base-public`)。Renovate が作成した既存のプルリクエストに対して、追加コミットや更新を行わない。
 - **アトミック更新メカニズム**: 並行実行時の競合を防止するため、リトライロジックを実装している。
 - **OS EOL 情報表示**: endoflife.date API を利用し、EOL 日が 90 日未満の場合はステータスを赤くマークする。
