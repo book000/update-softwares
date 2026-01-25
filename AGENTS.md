@@ -26,9 +26,9 @@
 ## 開発手順 (概要)
 
 1. プロジェクト理解:
-   - README.md を読む
-   - 主要なソースコードを確認する
-   - アーキテクチャを理解する
+   - 本ドキュメント (AGENTS.md) を読む
+   - リポジトリ構成と主要なファイル (例: src ディレクトリ、update-softwares.sh、update-softwares.ps1) を確認する
+   - アーキテクチャと主要な処理フローを理解する
 
 2. 依存関係インストール:
    - `pip install -r requirements.txt` を実行する
@@ -39,7 +39,7 @@
    - エラーメッセージは英語で記載する
 
 4. テストと検証:
-   - `python3 -m unittest discover -s tests -p "test_*.py"` でテストを実行する
+   - `pytest tests/` でテストを実行する
    - 動作確認を行う
 
 ## セキュリティ / 機密情報
@@ -51,7 +51,7 @@
 ## リポジトリ固有
 
 - **プロジェクト**: update-softwares - Linux (apt) と Windows (scoop) の複数マシンに対するパッケージ更新を自動化し、GitHub Issues API と統合して進捗を追跡・報告するツール
-- **技術スタック**: Python 3.12+, pip, requests, psutil, unittest
+- **技術スタック**: Python 3.8-3.13（開発・ CI で検証済み、推奨: 3.12+）, pip, requests, psutil, unittest
 - **GitHub トークン必須**: `data/github_token.txt` に有効なトークンを記載する
 - **Linux: root 権限必須**: apt-get 操作のため
 - **Windows: scoop インストール必須**: scoop コマンドを使用する

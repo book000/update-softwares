@@ -28,7 +28,7 @@
 - 主要な依存関係:
   - requests==2.32.4 (GitHub API 通信、endoflife.date API 呼び出し)
   - psutil==7.2.1 (Windows プロセス管理)
-- テストフレームワーク: unittest (標準ライブラリ)
+- テストフレームワーク: pytest (ランナー) + unittest (テスト記述)
 - CI/CD: GitHub Actions (Linux CI, Windows CI)
 
 ## コーディング規約
@@ -44,14 +44,17 @@
 # 依存関係のインストール
 pip install -r requirements.txt
 
+# テスト実行用に pytest もインストール
+pip install pytest
+
 # テスト実行
-python3 -m unittest discover -s tests -p "test_*.py"
+pytest tests/
 
 # Linux 固有テスト
-python3 -m unittest discover -s tests/linux -p "test_*.py"
+pytest tests/linux
 
 # Windows 固有テスト
-python3 -m unittest discover -s tests/windows -p "test_*.py"
+pytest tests/windows
 
 # アプリケーション実行 (前提: data/github_token.txt に有効な GitHub トークンを記載)
 python3 -m src <ISSUE_NUMBER>
@@ -59,10 +62,11 @@ python3 -m src <ISSUE_NUMBER>
 
 ## テスト方針
 
-- テストフレームワーク: unittest (標準ライブラリ)
+- テストランナー: pytest (pytest.ini で slow / integration / unit マーカーを定義し、CI から実行)
+- テスト記述: unittest (標準ライブラリ)
 - 包括的なモッキング: requests, subprocess, os.system などはモック化する
 - プラットフォーム分離: Linux/Windows テストは分離する
-- テストマーカー: slow (約 25 秒の Windows テスト), integration, unit
+- テストマーカー: slow (約 25 秒の Windows テスト), integration, unit (いずれも pytest.ini のマーカー)
 - テスト実行時のキャンセルは避ける (特に Windows テスト)
 
 ## セキュリティ / 機密情報
@@ -75,7 +79,7 @@ python3 -m src <ISSUE_NUMBER>
 
 以下のドキュメントは変更時に更新する:
 
-- README.md: プロジェクト概要、セットアップ手順、使い方
+- .github/copilot-instructions.md: プロジェクト概要、セットアップ手順、使い方
 - requirements.txt: 依存関係の追加・削除時
 
 ## リポジトリ固有

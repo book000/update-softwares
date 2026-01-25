@@ -83,14 +83,16 @@
 # 依存関係のインストール
 pip install -r requirements.txt
 
+pip install pytest
+
 # テスト実行
-python3 -m unittest discover -s tests -p "test_*.py"
+pytest tests/
 
 # Linux 固有テスト
-python3 -m unittest discover -s tests/linux -p "test_*.py"
+pytest tests/linux
 
 # Windows 固有テスト
-python3 -m unittest discover -s tests/windows -p "test_*.py"
+pytest tests/windows
 
 # アプリケーション実行 (前提: data/github_token.txt に有効な GitHub トークンを記載)
 python3 -m src <ISSUE_NUMBER>
@@ -143,10 +145,9 @@ update-softwares/
 
 ### テスト方針
 
-- テストフレームワーク: unittest (標準ライブラリ)
+- テストランナー: pytest (pytest.ini で slow / integration / unit マーカーを定義し、CI から実行)
 - 包括的なモッキング: 外部依存関係をモック化
-- プラットフォーム分離: Linux/Windows テストは分離
-- テストマーカー: slow (約 25 秒の Windows テスト), integration, unit
+- テストマーカー: slow (約 25 秒の Windows テスト), integration, unit （いずれも pytest.ini のマーカー）
 
 ### 追加テスト条件
 
@@ -157,7 +158,7 @@ update-softwares/
 
 ### 更新対象
 
-- README.md: プロジェクト概要、セットアップ手順、使い方
+- CLAUDE.md: プロジェクト概要、セットアップ手順、使い方
 - requirements.txt: 依存関係の追加・削除時
 
 ### 更新タイミング
