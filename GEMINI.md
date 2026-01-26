@@ -31,7 +31,7 @@
 ## コーディング規約
 
 - Python 命名規則に従う (snake_case)
-- 関数・クラスには docstring を日本語で記載する (GoogleStyle または JSDoc 形式)
+- 関数・クラスには docstring を日本語で記載する (Google style を推奨。必要に応じて reStructuredText または NumPy style も可)
 - .editorconfig に従う (UTF-8, LF, 2 スペースインデント)
 - コメント言語: 日本語
 - エラーメッセージ言語: 英語
@@ -42,14 +42,20 @@
 # 依存関係のインストール
 pip install -r requirements.txt
 
-# テスト実行
-python3 -m unittest discover -s tests -p "test_*.py"
+# テスト実行用に pytest もインストール
+pip install pytest
+
+# テスト実行 (推奨: CI と同様に pytest を使用)
+pytest tests/
 
 # Linux 固有テスト
-python3 -m unittest discover -s tests/linux -p "test_*.py"
+pytest tests/linux
 
 # Windows 固有テスト
-python3 -m unittest discover -s tests/windows -p "test_*.py"
+pytest tests/windows
+
+# または unittest でも実行可能
+python3 -m unittest discover -s tests -p "test_*.py"
 
 # アプリケーション実行 (前提: data/github_token.txt に有効な GitHub トークンを記載)
 python3 -m src <ISSUE_NUMBER>

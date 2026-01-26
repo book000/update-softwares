@@ -28,13 +28,14 @@
 - 主要な依存関係:
   - requests==2.32.4 (GitHub API 通信、endoflife.date API 呼び出し)
   - psutil==7.2.1 (Windows プロセス管理)
-- テストフレームワーク: unittest (標準ライブラリ)
+- テストランナー: pytest (pytest.ini で slow / integration / unit マーカーを定義し、CI から実行)
+- テストフレームワーク: unittest (標準ライブラリ、テスト記述用)
 - CI/CD: GitHub Actions (Linux CI, Windows CI)
 
 ## コーディング規約
 
 - Python 命名規則に従う (snake_case)
-- 関数・クラスには docstring を日本語で記載する (GoogleStyle または JSDoc 形式)
+- 関数・クラスには docstring を日本語で記載する (Google style 形式の Args / Returns 付き)
 - .editorconfig に従う (UTF-8, LF, 2 スペースインデント)
 - 正式なリンティング設定はないが、既存コードスタイルに従う
 
@@ -44,14 +45,20 @@
 # 依存関係のインストール
 pip install -r requirements.txt
 
-# テスト実行
-python3 -m unittest discover -s tests -p "test_*.py"
+# テスト実行用に pytest もインストール
+pip install pytest
+
+# テスト実行 (推奨: CI と同様に pytest を使用)
+pytest tests/
 
 # Linux 固有テスト
-python3 -m unittest discover -s tests/linux -p "test_*.py"
+pytest tests/linux
 
 # Windows 固有テスト
-python3 -m unittest discover -s tests/windows -p "test_*.py"
+pytest tests/windows
+
+# または unittest でも実行可能
+python3 -m unittest discover -s tests -p "test_*.py"
 
 # アプリケーション実行 (前提: data/github_token.txt に有効な GitHub トークンを記載)
 python3 -m src <ISSUE_NUMBER>
@@ -59,10 +66,11 @@ python3 -m src <ISSUE_NUMBER>
 
 ## テスト方針
 
-- テストフレームワーク: unittest (標準ライブラリ)
+- テストランナー: pytest (pytest.ini で slow / integration / unit マーカーを定義し、CI から実行)
+- テストフレームワーク: unittest (標準ライブラリ、テスト記述用)
 - 包括的なモッキング: requests, subprocess, os.system などはモック化する
 - プラットフォーム分離: Linux/Windows テストは分離する
-- テストマーカー: slow (約 25 秒の Windows テスト), integration, unit
+- テストマーカー: slow (約 25 秒の Windows テスト), integration, unit (いずれも pytest.ini のマーカー)
 - テスト実行時のキャンセルは避ける (特に Windows テスト)
 
 ## セキュリティ / 機密情報
@@ -75,8 +83,11 @@ python3 -m src <ISSUE_NUMBER>
 
 以下のドキュメントは変更時に更新する:
 
-- README.md: プロジェクト概要、セットアップ手順、使い方
+- .github/copilot-instructions.md: 開発ルールや作業手順を変更したとき
 - requirements.txt: 依存関係の追加・削除時
+- その他のドキュメント (例: AGENTS.md, CLAUDE.md など): 内容変更時
+
+README.md は現在このリポジトリには存在しないが、将来追加された場合はプロジェクト概要・セットアップ手順・使い方の変更に応じて更新対象とする。
 
 ## リポジトリ固有
 
