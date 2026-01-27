@@ -75,7 +75,7 @@ python3 -m src <ISSUE_NUMBER>
 
 ## リポジトリ固有
 
-- **技術スタック**: Python 3.12+, pip, requests==2.32.4, psutil==7.2.1, unittest
+- **技術スタック**: Python 3.8-3.13 (CI で検証済み、推奨 3.12 以上), pip, requests==2.32.4, psutil==7.2.1, unittest
 - **Renovate 統合**: 外部テンプレート使用 (`github>book000/templates//renovate/base-public`)。Renovate が作成した既存のプルリクエストに対して、追加コミットや更新を行わない。
 - **アトミック更新メカニズム**: 並行実行時の競合を防止するため、リトライロジックを実装している。
 - **OS EOL 情報表示**: endoflife.date API を利用し、EOL 日が 90 日未満の場合はステータスを赤くマークする。

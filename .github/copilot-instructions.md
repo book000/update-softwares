@@ -23,13 +23,13 @@
 
 ## 技術スタック
 
-- 言語: Python 3.12+ が最適 (テスト対象: 3.8-3.13)
+- 言語: Python 3.8-3.13 (CI で検証済み、推奨 3.12 以上)
 - パッケージマネージャー: pip
 - 主要な依存関係:
   - requests==2.32.4 (GitHub API 通信、endoflife.date API 呼び出し)
   - psutil==7.2.1 (Windows プロセス管理)
 - テストランナー: pytest (pytest.ini で slow / integration / unit マーカーを定義し、CI から実行)
-- テストフレームワーク: unittest (標準ライブラリ、テスト記述用)
+- テストフレームワーク: unittest (標準ライブラリ、テスト記述用。pytest から実行)
 - CI/CD: GitHub Actions (Linux CI, Windows CI)
 
 ## コーディング規約
@@ -67,7 +67,7 @@ python3 -m src <ISSUE_NUMBER>
 ## テスト方針
 
 - テストランナー: pytest (pytest.ini で slow / integration / unit マーカーを定義し、CI から実行)
-- テストフレームワーク: unittest (標準ライブラリ、テスト記述用)
+- テストフレームワーク: unittest (標準ライブラリ、テスト記述用。pytest から実行)
 - 包括的なモッキング: requests, subprocess, os.system などはモック化する
 - プラットフォーム分離: Linux/Windows テストは分離する
 - テストマーカー: slow (約 25 秒の Windows テスト), integration, unit (いずれも pytest.ini のマーカー)

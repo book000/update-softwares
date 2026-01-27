@@ -150,7 +150,7 @@ update-softwares/
 ### テスト方針
 
 - テストランナー: pytest (pytest.ini で slow / integration / unit マーカーを定義し、CI から実行)
-- テストフレームワーク: unittest (標準ライブラリ、テスト記述用)
+- テストフレームワーク: unittest (標準ライブラリ、テスト記述用。pytest から実行)
 - 包括的なモッキング: 外部依存関係をモック化
 - プラットフォーム分離: Linux/Windows テストは分離
 - テストマーカー: slow (約 25 秒の Windows テスト), integration, unit (いずれも pytest.ini のマーカー)
