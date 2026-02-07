@@ -37,7 +37,6 @@ check_command git
 check_command python3
 
 install -d -m 755 /opt/update-softwares
-install -d -m 700 /opt/update-softwares/logs
 cd /opt/update-softwares || exit 1
 
 # clone repository
@@ -46,6 +45,8 @@ if [ ! -d /opt/update-softwares/.git ]; then
 else
   git pull
 fi
+
+install -d -m 700 /opt/update-softwares/logs
 
 # create venv and install requirements
 if [ ! -d /opt/update-softwares/venv ]; then
