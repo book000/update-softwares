@@ -14,6 +14,7 @@ from src.windows.update_scoop_softwares import (
   stop_app,
   start_app,
   get_app_startup_command,
+  cleanup_scoop,
 )
 
 
@@ -337,6 +338,29 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
       exe_path, args = get_app_startup_command('app1', 'test.exe')
       self.assertIsNone(exe_path)
       self.assertIsNone(args)
+
+  @patch('src.windows.update_scoop_softwares.subprocess.run')
+  def test_cleanup_scoop_success(self, mock_run):
+    mock_run.return_value = MagicMock(returncode=0, stderr='')
+    result = cleanup_scoop()
+    self.assertTrue(result)
+    self.assertEqual(mock_run.call_count, 2)
+    mock_run.assert_any_call(['scoop', 'cleanup', '*'], capture_output=True, text=True)
+    mock_run.assert_any_call(['scoop', 'cache', 'rm', '*'], capture_output=True, text=True)
+
+  @patch('src.windows.update_scoop_softwares.subprocess.run')
+  def test_cleanup_scoop_failure(self, mock_run):
+    mock_run.return_value = MagicMock(returncode=1, stderr='error')
+    result = cleanup_scoop()
+    self.assertFalse(result)
+    self.assertEqual(mock_run.call_count, 2)
+
+  @patch('src.windows.update_scoop_softwares.subprocess.run', side_effect=OSError('scoop not found'))
+  def test_cleanup_scoop_command_not_found(self, mock_run):
+    # scoop コマンドが PATH で解決できない場合でも例外を送出せず False を返す
+    result = cleanup_scoop()
+    self.assertFalse(result)
+    self.assertEqual(mock_run.call_count, 2)
 
 
 if __name__ == '__main__':

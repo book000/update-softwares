@@ -294,9 +294,30 @@ def start_app(app_name, app_processes):
         except Exception as e:
             print(f"Failed to start {exe_path_str}: {e}")
 
-def cleanup_scoop():
-    os.system("scoop cleanup *")
-    os.system("scoop cache rm *")
+def cleanup_scoop() -> bool:
+    """scoop のクリーンアップとキャッシュ削除を実行する。
+
+    Returns:
+        bool: すべてのコマンドが正常終了した場合は True、いずれかが失敗した場合は False。
+    """
+    commands = [
+        ["scoop", "cleanup", "*"],
+        ["scoop", "cache", "rm", "*"],
+    ]
+    success = True
+    for command in commands:
+        try:
+            result = subprocess.run(command, capture_output=True, text=True)
+        except OSError as e:
+            success = False
+            logger.error(f"Command failed: {' '.join(command)} ({e})")
+            continue
+        if result.returncode != 0:
+            success = False
+            logger.error(f"Command failed: {' '.join(command)} (exit code {result.returncode})")
+            if result.stderr:
+                logger.error(f"stderr: {result.stderr}")
+    return success
 
 def run(github_issue, hostname) -> None:
     try:
@@ -369,7 +390,7 @@ def run(github_issue, hostname) -> None:
             os_eol_critical=is_critical,
         )
 
-        # Cleanup scoop
+        # scoop のクリーンアップを実行
         cleanup_scoop()
 
         upgraded_status_results = get_scoop_status()
