@@ -306,7 +306,12 @@ def cleanup_scoop() -> bool:
     ]
     success = True
     for command in commands:
-        result = subprocess.run(command, capture_output=True, text=True)
+        try:
+            result = subprocess.run(command, capture_output=True, text=True)
+        except OSError as e:
+            success = False
+            logger.error(f"Command failed: {' '.join(command)} ({e})")
+            continue
         if result.returncode != 0:
             success = False
             logger.error(f"Command failed: {' '.join(command)} (exit code {result.returncode})")

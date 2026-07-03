@@ -355,6 +355,13 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
     self.assertFalse(result)
     self.assertEqual(mock_run.call_count, 2)
 
+  @patch('src.windows.update_scoop_softwares.subprocess.run', side_effect=OSError('scoop not found'))
+  def test_cleanup_scoop_command_not_found(self, mock_run):
+    # scoop コマンドが PATH で解決できない場合でも例外を送出せず False を返す
+    result = cleanup_scoop()
+    self.assertFalse(result)
+    self.assertEqual(mock_run.call_count, 2)
+
 
 if __name__ == '__main__':
   unittest.main()
