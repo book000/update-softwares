@@ -294,6 +294,9 @@ def start_app(app_name, app_processes):
         except Exception as e:
             print(f"Failed to start {exe_path_str}: {e}")
 
+def cleanup_scoop():
+    os.system("scoop cleanup *")
+    os.system("scoop cache rm *")
 
 def run(github_issue, hostname) -> None:
     try:
@@ -365,6 +368,9 @@ def run(github_issue, hostname) -> None:
             os_eol=os_eol_info,
             os_eol_critical=is_critical,
         )
+
+        # Cleanup scoop
+        cleanup_scoop()
 
         upgraded_status_results = get_scoop_status()
         print("Failed upgrade applications:")
