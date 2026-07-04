@@ -357,7 +357,8 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
 
   @patch('src.windows.update_scoop_softwares.subprocess.run', side_effect=OSError('scoop not found'))
   def test_cleanup_scoop_command_not_found(self, mock_run):
-    # scoop コマンドが PATH で解決できない場合でも例外を送出せず False を返す
+    # shell=True 経由でも cmd.exe 自体の起動失敗等で OSError が送出される場合があり、
+    # その際も例外を送出せず False を返す (scoop 自体が見つからない場合は returncode != 0 として test_cleanup_scoop_failure と同じ経路になる)
     result = cleanup_scoop()
     self.assertFalse(result)
     self.assertEqual(mock_run.call_count, 2)
