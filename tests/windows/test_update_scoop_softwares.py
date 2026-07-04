@@ -345,8 +345,8 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
     result = cleanup_scoop()
     self.assertTrue(result)
     self.assertEqual(mock_run.call_count, 2)
-    mock_run.assert_any_call(['scoop', 'cleanup', '*'], capture_output=True, text=True)
-    mock_run.assert_any_call(['scoop', 'cache', 'rm', '*'], capture_output=True, text=True)
+    mock_run.assert_any_call(['scoop', 'cleanup', '*'], shell=True, capture_output=True, text=True)
+    mock_run.assert_any_call(['scoop', 'cache', 'rm', '*'], shell=True, capture_output=True, text=True)
 
   @patch('src.windows.update_scoop_softwares.subprocess.run')
   def test_cleanup_scoop_failure(self, mock_run):
