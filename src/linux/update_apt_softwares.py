@@ -25,6 +25,48 @@ def _is_installed_version(value):
   return normalized not in ("not installed", "not-installed", "none", "unknown")
 
 
+def is_dpkg_broken() -> bool:
+  """dpkg が中断状態 (dpkg --configure -a が必要な状態) かどうかを判定する。
+
+  dpkg --audit は破損パッケージが存在しなくても終了コード 0 を返すため、
+  check=True は使わず標準出力の有無のみで判定する。
+
+  Returns:
+      bool: 中断状態であれば True、正常であれば False。
+          dpkg --audit の実行自体が失敗した場合も False を返す
+          (検出ロジックの不備で apt 更新処理本体を止めないため)。
+  """
+  try:
+    result = subprocess.run(
+      ["dpkg", "--audit"],
+      text=True,
+      capture_output=True,
+    )
+  except OSError as e:
+    logger.warning("Failed to run dpkg --audit: %s", e)
+    return False
+  if result.returncode != 0:
+    logger.warning("dpkg --audit exited with a non-zero status: %s", result.returncode)
+    return False
+  return bool(result.stdout.strip())
+
+
+def run_dpkg_configure() -> bool:
+  """dpkg --configure -a を実行し、未完了のパッケージ設定を修復する。
+
+  既存の apt 実行処理のスタイルに合わせている。
+
+  Returns:
+      bool: 終了コードが 0 であれば True、それ以外または例外発生時は False。
+  """
+  try:
+    result = os.system("dpkg --configure -a")
+    return result == 0
+  except Exception as e:
+    logger.error("An error occurred while running dpkg --configure -a: %s", e)
+    return False
+
+
 def _log_apt_stderr(stderr, context):
   if not stderr:
     return
@@ -226,6 +268,29 @@ def run(github_issue, hostname):
       os_eol=os_eol_info,
       os_eol_critical=is_critical,
     )
+
+    if is_dpkg_broken():
+      logger.warning("dpkg is in an interrupted state; running dpkg --configure -a...")
+      if run_dpkg_configure():
+        logger.info("dpkg --configure -a completed successfully.")
+        github_issue.comment(
+          f"{github_issue.get_markdown_computer_name(hostname)} : dpkg の中断状態を検出したため `dpkg --configure -a` を実行しました。"
+        )
+      else:
+        logger.error("dpkg --configure -a failed.")
+        github_issue.comment(
+          f"{github_issue.get_markdown_computer_name(hostname)} : dpkg の中断状態を検出し `dpkg --configure -a` を実行しましたが失敗しました。手動対応が必要です。"
+        )
+        github_issue.atomic_update_with_retry(
+          computer_name=hostname,
+          package_manager="apt",
+          upgraded="",
+          failed="1",
+          status="failed",
+          os_eol=os_eol_info,
+          os_eol_critical=is_critical,
+        )
+        return
 
     logger.info("Updating package list...")
     run_apt_update()
