@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 from subprocess import CalledProcessError
 import os
 
-from src.linux.update_apt_softwares import is_root, run_apt_update, get_apt_full_upgrade_target, run_apt_full_upgrade, _is_installed_version, is_dpkg_broken
+from src.linux.update_apt_softwares import is_root, run_apt_update, get_apt_full_upgrade_target, run_apt_full_upgrade, _is_installed_version, is_dpkg_broken, run_dpkg_configure
 
 class TestUpdateAptSoftwares(unittest.TestCase):
   # 正常系: root権限での実行確認
@@ -259,6 +259,30 @@ class TestUpdateAptSoftwares(unittest.TestCase):
 
     self.assertFalse(is_dpkg_broken())
     mock_logger.warning.assert_called_once()
+
+  # 正常系: dpkg --configure -a の実行成功
+  @patch("os.system")
+  def test_run_dpkg_configure_success(self, mock_system):
+    mock_system.return_value = 0
+
+    self.assertTrue(run_dpkg_configure())
+    mock_system.assert_called_once_with("dpkg --configure -a")
+
+  # 異常系: dpkg --configure -a の実行失敗
+  @patch("os.system")
+  def test_run_dpkg_configure_failure(self, mock_system):
+    mock_system.return_value = 1
+
+    self.assertFalse(run_dpkg_configure())
+
+  # 異常系: dpkg --configure -a の実行が例外を発生させる
+  @patch("src.linux.update_apt_softwares.logger")
+  @patch("os.system")
+  def test_run_dpkg_configure_exception(self, mock_system, mock_logger):
+    mock_system.side_effect = Exception("dpkg configure failed")
+
+    self.assertFalse(run_dpkg_configure())
+    mock_logger.error.assert_called_once()
 
   def test_is_installed_version(self):
     self.assertFalse(_is_installed_version(None))

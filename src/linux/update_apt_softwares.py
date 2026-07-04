@@ -48,6 +48,23 @@ def is_dpkg_broken() -> bool:
   return bool(result.stdout.strip())
 
 
+def run_dpkg_configure() -> bool:
+  """dpkg --configure -a を実行し、未完了のパッケージ設定を修復する。
+
+  既存の run_apt_full_upgrade() と同じスタイル (os.system + 例外握り +
+  bool 返却) に合わせている。
+
+  Returns:
+      bool: 終了コードが 0 であれば True、それ以外または例外発生時は False。
+  """
+  try:
+    result = os.system("dpkg --configure -a")
+    return result == 0
+  except Exception as e:
+    logger.error(f"An error occurred while running dpkg --configure -a: {e}")
+    return False
+
+
 def _log_apt_stderr(stderr, context):
   if not stderr:
     return
