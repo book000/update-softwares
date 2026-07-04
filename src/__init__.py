@@ -83,7 +83,7 @@ class GitHubIssue:
         markdown["failed"]
       ]) + " |"
 
-  def update_software_update_row(self, computer_name, package_manager, status, upgraded, failed, os_eol=None, os_eol_critical=False):
+  def update_software_update_row(self, computer_name, package_manager, status, upgraded, failed, os_eol=None, os_eol_critical=False, operation_system=None):
     if status not in self.status_mapping:
       raise Exception(f"Invalid status: {status}. Valid values are {list(self.status_mapping.keys())}")
 
@@ -94,18 +94,22 @@ class GitHubIssue:
         software_update["markdown"]["checkmark"] = checkmark
         software_update["markdown"]["upgraded"] = upgraded
         software_update["markdown"]["failed"] = failed
-        
+
         # OS EOL 情報がある場合は更新
         if os_eol is not None:
           software_update["markdown"]["os_eol"] = os_eol
-        
+
+        # OS 名・バージョン情報がある場合は更新
+        if operation_system is not None:
+          software_update["markdown"]["operation_system"] = operation_system
+
         software_update["markdown"]["raw"] = self._build_markdown_row(software_update)
 
         return True
 
     return False
 
-  def atomic_update_with_retry(self, computer_name, package_manager, status, upgraded, failed, os_eol=None, os_eol_critical=False, max_retries=3):
+  def atomic_update_with_retry(self, computer_name, package_manager, status, upgraded, failed, os_eol=None, os_eol_critical=False, operation_system=None, max_retries=3):
     """
     Atomically update the issue body with retry logic to handle concurrent updates.
     This method combines update processing and GitHub Issue body reflection into a single operation.
@@ -132,7 +136,11 @@ class GitHubIssue:
             # OS EOL 情報がある場合は更新
             if os_eol is not None:
               software_update["markdown"]["os_eol"] = os_eol
-            
+
+            # OS 名・バージョン情報がある場合は更新
+            if operation_system is not None:
+              software_update["markdown"]["operation_system"] = operation_system
+
             software_update["markdown"]["raw"] = self._build_markdown_row(software_update)
             updated = True
             break
