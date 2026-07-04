@@ -311,3 +311,42 @@ def get_os_eol_info() -> Tuple[str, bool]:
   os_name, version = get_os_version_info()
   eol_date = get_os_eol_date(os_name, version)
   return format_eol_info(eol_date)
+
+
+def get_os_display_string() -> str:
+  """
+  「OS」列に表示するための OS 名・バージョン文字列を取得する
+
+  Linux の場合は /etc/os-release の PRETTY_NAME をそのまま返す。
+  取得できない場合や Windows の場合は、get_linux_version_info() /
+  get_windows_version_info() が返す (os_name, version) を
+  "{os_name} {version}" 形式に整形して返す。
+
+  Returns:
+    str: OS 表示文字列。取得に失敗した場合は "Unknown"
+  """
+  try:
+    if os.name == 'nt':
+      os_name, version = get_windows_version_info()
+      return f"{os_name} {version}"
+
+    # Linux: /etc/os-release の PRETTY_NAME を優先する
+    if os.path.exists('/etc/os-release'):
+      with open('/etc/os-release', 'r') as f:
+        lines = f.readlines()
+
+      os_info = {}
+      for line in lines:
+        if '=' in line:
+          key, value = line.strip().split('=', 1)
+          os_info[key] = value.strip('"')
+
+      pretty_name = os_info.get('PRETTY_NAME', '')
+      if pretty_name:
+        return pretty_name
+
+    # PRETTY_NAME が取得できない場合は既存の (os_name, version) を整形する
+    os_name, version = get_linux_version_info()
+    return f"{os_name} {version}"
+  except Exception:
+    return "Unknown"

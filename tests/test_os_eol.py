@@ -9,7 +9,8 @@ from src.os_eol import (
   get_os_eol_date,
   get_os_eol_date_from_api,
   format_eol_info,
-  get_os_eol_info
+  get_os_eol_info,
+  get_os_display_string
 )
 
 
@@ -335,6 +336,60 @@ class TestOSEOL(unittest.TestCase):
         
     self.assertEqual(os_name, "CentOS")
     self.assertEqual(version, "7")
+
+  @patch('os.name', 'posix')
+  @patch('os.path.exists')
+  @patch('builtins.open', mock_open(read_data='NAME="Ubuntu"\nVERSION_ID="22.04"\nPRETTY_NAME="Ubuntu 22.04.5 LTS"\n'))
+  def test_get_os_display_string_linux_pretty_name(self, mock_exists):
+    """Linux で PRETTY_NAME が取得できる場合、そのまま返すテスト"""
+    mock_exists.return_value = True
+
+    result = get_os_display_string()
+
+    self.assertEqual(result, "Ubuntu 22.04.5 LTS")
+
+  @patch('os.name', 'posix')
+  @patch('os.path.exists')
+  @patch('src.os_eol.get_linux_version_info')
+  def test_get_os_display_string_linux_no_os_release(self, mock_get_version, mock_exists):
+    """/etc/os-release が存在しない場合、(os_name, version) にフォールバックするテスト"""
+    mock_exists.return_value = False
+    mock_get_version.return_value = ("Ubuntu", "22.04")
+
+    result = get_os_display_string()
+
+    self.assertEqual(result, "Ubuntu 22.04")
+
+  @patch('os.name', 'posix')
+  @patch('os.path.exists')
+  @patch('builtins.open', mock_open(read_data='NAME="Ubuntu"\nVERSION_ID="22.04"\n'))
+  @patch('src.os_eol.get_linux_version_info')
+  def test_get_os_display_string_linux_no_pretty_name(self, mock_get_version, mock_exists):
+    """/etc/os-release に PRETTY_NAME がない場合、(os_name, version) にフォールバックするテスト"""
+    mock_exists.return_value = True
+    mock_get_version.return_value = ("Ubuntu", "22.04")
+
+    result = get_os_display_string()
+
+    self.assertEqual(result, "Ubuntu 22.04")
+
+  @patch('os.name', 'nt')
+  @patch('src.os_eol.get_windows_version_info')
+  def test_get_os_display_string_windows(self, mock_get_version):
+    """Windows の場合、(os_name, version) を結合して返すテスト"""
+    mock_get_version.return_value = ("Windows", "11-24H2")
+
+    result = get_os_display_string()
+
+    self.assertEqual(result, "Windows 11-24H2")
+
+  @patch('os.name', 'posix')
+  @patch('os.path.exists', side_effect=Exception("boom"))
+  def test_get_os_display_string_exception_fallback(self, mock_exists):
+    """例外発生時に Unknown を返すテスト"""
+    result = get_os_display_string()
+
+    self.assertEqual(result, "Unknown")
 
 
 if __name__ == "__main__":
