@@ -51,8 +51,7 @@ def is_dpkg_broken() -> bool:
 def run_dpkg_configure() -> bool:
   """dpkg --configure -a を実行し、未完了のパッケージ設定を修復する。
 
-  既存の run_apt_full_upgrade() と同じスタイル (os.system + 例外握り +
-  bool 返却) に合わせている。
+  既存の apt 実行処理のスタイルに合わせている。
 
   Returns:
       bool: 終了コードが 0 であれば True、それ以外または例外発生時は False。

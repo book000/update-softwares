@@ -180,7 +180,7 @@ class TestUpdateAptSoftwares(unittest.TestCase):
     self.assertFalse(result)
     mock_system.assert_called_once_with("apt-get -y dist-upgrade")
 
-  # 正常系: dpkgが中断状態でない場合、run_dpkg_configure()は呼ばれず既存フローが継続する
+  # 正常系: dpkg が中断状態でない場合、run_dpkg_configure() は呼ばれず既存フローが継続する
   @patch("src.linux.update_apt_softwares.run_apt_update")
   @patch("src.linux.update_apt_softwares.get_apt_full_upgrade_target")
   @patch("src.linux.update_apt_softwares.run_apt_full_upgrade")
@@ -204,7 +204,7 @@ class TestUpdateAptSoftwares(unittest.TestCase):
     mock_issue_instance.comment.assert_not_called()
     mock_run_apt_update.assert_called()
 
-  # 正常系: dpkgが中断状態で修復に成功した場合、コメントを追加して既存フローが継続する
+  # 正常系: dpkg が中断状態で修復に成功した場合、コメントを追加して既存フローが継続する
   @patch("src.linux.update_apt_softwares.run_apt_update")
   @patch("src.linux.update_apt_softwares.get_apt_full_upgrade_target")
   @patch("src.linux.update_apt_softwares.run_apt_full_upgrade")
@@ -228,7 +228,7 @@ class TestUpdateAptSoftwares(unittest.TestCase):
     mock_issue_instance.comment.assert_called_once()
     mock_run_apt_update.assert_called()
 
-  # 異常系: dpkgが中断状態で修復に失敗した場合、failedで即時中断する
+  # 異常系: dpkg が中断状態で修復に失敗した場合、failed で即時中断する
   @patch("src.linux.update_apt_softwares.run_apt_update")
   @patch("src.linux.update_apt_softwares.get_apt_full_upgrade_target")
   @patch("src.linux.update_apt_softwares.run_apt_full_upgrade")
