@@ -15,6 +15,7 @@ from src.windows.update_scoop_softwares import (
   start_app,
   get_app_startup_command,
   cleanup_scoop,
+  run,
 )
 
 
@@ -362,6 +363,40 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
     result = cleanup_scoop()
     self.assertFalse(result)
     self.assertEqual(mock_run.call_count, 2)
+
+  @patch('src.windows.update_scoop_softwares.get_os_display_string', return_value="Windows 11-24H2")
+  @patch('src.windows.update_scoop_softwares.get_os_eol_info', return_value=("2030-01-01 (1000 日後)", False))
+  @patch('src.windows.update_scoop_softwares.cleanup_scoop', return_value=True)
+  @patch('src.windows.update_scoop_softwares.get_running_apps', return_value={})
+  @patch('src.windows.update_scoop_softwares.get_scoop_status', return_value=[])
+  @patch('src.windows.update_scoop_softwares.update_scoop_repos', return_value=True)
+  def test_run_success_passes_operation_system(self, mock_update_repos, mock_get_status, mock_get_running_apps, mock_cleanup, mock_get_eol, mock_get_display):
+    """run() が operation_system を全呼び出しに渡すことを確認するテスト
+
+    `get_running_apps()` は `app_names` が空でも内部で `os.getenv("SCOOP")` を
+    無条件に呼び出すため、モックしないとテスト環境に `SCOOP` 環境変数がない場合に
+    `TypeError` が送出され、`run()` の except ブロック(異常系)に落ちて
+    しまい、意図した正常系を検証できなくなる。そのため明示的にモックする。
+    """
+    github_issue = MagicMock()
+
+    run(github_issue, "test-host")
+
+    github_issue.atomic_update_with_retry.assert_called()
+    for call_args in github_issue.atomic_update_with_retry.call_args_list:
+      self.assertEqual(call_args.kwargs["operation_system"], "Windows 11-24H2")
+
+  @patch('src.windows.update_scoop_softwares.get_os_display_string', return_value="Windows 11-24H2")
+  @patch('src.windows.update_scoop_softwares.get_os_eol_info', side_effect=Exception("boom"))
+  @patch('src.windows.update_scoop_softwares.update_scoop_repos', side_effect=Exception("update failed"))
+  def test_run_exception_passes_operation_system(self, mock_update_repos, mock_get_eol, mock_get_display):
+    """run() の例外系でも operation_system が渡されることを確認するテスト"""
+    github_issue = MagicMock()
+
+    run(github_issue, "test-host")
+
+    call_args = github_issue.atomic_update_with_retry.call_args
+    self.assertEqual(call_args.kwargs["operation_system"], "Windows 11-24H2")
 
 
 if __name__ == '__main__':

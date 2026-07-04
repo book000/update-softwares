@@ -5,7 +5,7 @@ import textwrap
 import time
 import logging
 from .. import GitHubIssue # required by tests
-from ..os_eol import get_os_eol_info
+from ..os_eol import get_os_eol_info, get_os_display_string
 
 from .. import is_root
 
@@ -256,7 +256,9 @@ def run(github_issue, hostname):
   try:
     # OS EOL 情報を取得
     os_eol_info, is_critical = get_os_eol_info()
-        
+    # OS 表示文字列を取得
+    os_display = get_os_display_string()
+
     logger.info("Starting apt update and full upgrade...")
     # Set initial status to running
     github_issue.atomic_update_with_retry(
@@ -267,6 +269,7 @@ def run(github_issue, hostname):
       status="running",
       os_eol=os_eol_info,
       os_eol_critical=is_critical,
+      operation_system=os_display,
     )
 
     if is_dpkg_broken():
@@ -309,6 +312,7 @@ def run(github_issue, hostname):
         status="success",
         os_eol=os_eol_info,
         os_eol_critical=is_critical,
+        operation_system=os_display,
       )
       return
 
@@ -323,6 +327,7 @@ def run(github_issue, hostname):
       status="running",
       os_eol=os_eol_info,
       os_eol_critical=is_critical,
+      operation_system=os_display,
     )
 
     logger.info("Upgrading packages...")
@@ -347,6 +352,7 @@ def run(github_issue, hostname):
       status=final_status,
       os_eol=os_eol_info,
       os_eol_critical=is_critical,
+      operation_system=os_display,
     )
 
     logger.info("Upgrade complete.")
@@ -364,7 +370,9 @@ def run(github_issue, hostname):
     except Exception:
       os_eol_info = "不明"
       is_critical = False
-        
+    # OS 表示文字列を取得 (エラー時も含める)
+    os_display = get_os_display_string()
+
     # Set error status atomically
     github_issue.atomic_update_with_retry(
       computer_name=hostname,
@@ -374,4 +382,5 @@ def run(github_issue, hostname):
       status="failed",
       os_eol=os_eol_info,
       os_eol_critical=is_critical,
+      operation_system=os_display,
     )

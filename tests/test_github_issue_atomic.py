@@ -69,6 +69,126 @@ class TestGitHubIssueAtomic(unittest.TestCase):
 
   @patch('src.requests.patch')
   @patch('src.requests.get')
+  def test_atomic_update_with_retry_overwrites_operation_system(self, mock_get, mock_patch):
+    """operation_system を渡した場合に OS 列が上書きされることを確認するテスト"""
+    initial_body = "| ⏳ | Computer1 | Linux | apt | 0 | 0 | <!-- update-softwares#Computer1#apt -->"
+
+    mock_get_response = MagicMock()
+    mock_get_response.status_code = 200
+    mock_get_response.json.return_value = {"body": initial_body}
+    mock_get.return_value = mock_get_response
+
+    mock_patch_response = MagicMock()
+    mock_patch_response.status_code = 200
+    mock_patch.return_value = mock_patch_response
+
+    github_issue = GitHubIssue(self.repo_name, self.issue_number, self.github_token)
+
+    result = github_issue.atomic_update_with_retry(
+      computer_name="Computer1",
+      package_manager="apt",
+      status="success",
+      upgraded="5",
+      failed="0",
+      operation_system="Ubuntu 22.04.5 LTS",
+    )
+
+    self.assertTrue(result)
+    patch_call_args = mock_patch.call_args
+    updated_body = patch_call_args[1]['json']['body']
+    self.assertIn("Ubuntu 22.04.5 LTS", updated_body)
+    self.assertNotIn("| Linux |", updated_body)
+
+  @patch('src.requests.patch')
+  @patch('src.requests.get')
+  def test_atomic_update_with_retry_keeps_operation_system_when_none(self, mock_get, mock_patch):
+    """operation_system を渡さない場合、既存の OS 列の値が維持されることを確認するテスト"""
+    initial_body = "| ⏳ | Computer1 | Linux | apt | 0 | 0 | <!-- update-softwares#Computer1#apt -->"
+
+    mock_get_response = MagicMock()
+    mock_get_response.status_code = 200
+    mock_get_response.json.return_value = {"body": initial_body}
+    mock_get.return_value = mock_get_response
+
+    mock_patch_response = MagicMock()
+    mock_patch_response.status_code = 200
+    mock_patch.return_value = mock_patch_response
+
+    github_issue = GitHubIssue(self.repo_name, self.issue_number, self.github_token)
+
+    github_issue.atomic_update_with_retry(
+      computer_name="Computer1",
+      package_manager="apt",
+      status="success",
+      upgraded="5",
+      failed="0",
+    )
+
+    updated_body = mock_patch.call_args[1]['json']['body']
+    self.assertIn("| Linux |", updated_body)
+
+  @patch('src.requests.get')
+  def test_update_software_update_row_overwrites_operation_system(self, mock_get):
+    """update_software_update_row() で operation_system が上書きされることを確認するテスト"""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+      "body": "| ⏳ | Computer1 | Linux | apt | 0 | 0 | <!-- update-softwares#Computer1#apt -->"
+    }
+    mock_get.return_value = mock_response
+
+    github_issue = GitHubIssue(self.repo_name, self.issue_number, self.github_token)
+
+    result = github_issue.update_software_update_row(
+      computer_name="Computer1",
+      package_manager="apt",
+      status="success",
+      upgraded="5",
+      failed="0",
+      operation_system="Ubuntu 22.04.5 LTS",
+    )
+
+    self.assertTrue(result)
+    updated_row = next(
+      su for su in github_issue.software_updates
+      if su["computer_name"] == "Computer1" and su["package_manager"] == "apt"
+    )
+    self.assertEqual(updated_row["markdown"]["operation_system"], "Ubuntu 22.04.5 LTS")
+    self.assertIn("Ubuntu 22.04.5 LTS", updated_row["markdown"]["raw"])
+
+  @patch('src.requests.patch')
+  @patch('src.requests.get')
+  def test_atomic_update_with_retry_overwrites_operation_system_new_format(self, mock_get, mock_patch):
+    """新フォーマット(os_eol 列あり)の行でも operation_system が上書きされることを確認するテスト"""
+    initial_body = "| ⏳ | Computer1 | Linux | apt | 0 | 0 | 不明 | <!-- update-softwares#Computer1#apt -->"
+
+    mock_get_response = MagicMock()
+    mock_get_response.status_code = 200
+    mock_get_response.json.return_value = {"body": initial_body}
+    mock_get.return_value = mock_get_response
+
+    mock_patch_response = MagicMock()
+    mock_patch_response.status_code = 200
+    mock_patch.return_value = mock_patch_response
+
+    github_issue = GitHubIssue(self.repo_name, self.issue_number, self.github_token)
+
+    github_issue.atomic_update_with_retry(
+      computer_name="Computer1",
+      package_manager="apt",
+      status="success",
+      upgraded="5",
+      failed="0",
+      os_eol="2027-04-30 (300 日後)",
+      operation_system="Ubuntu 22.04.5 LTS",
+    )
+
+    updated_body = mock_patch.call_args[1]['json']['body']
+    self.assertIn("Ubuntu 22.04.5 LTS", updated_body)
+    self.assertIn("2027-04-30", updated_body)
+
+  @patch('src.requests.patch')
+  @patch('src.requests.get')
   def test_atomic_update_with_retry_on_failure(self, mock_get, mock_patch):
     """Test atomic update with retry on API failure."""
     # Setup initial issue body

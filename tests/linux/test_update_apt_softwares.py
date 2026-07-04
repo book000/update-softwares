@@ -268,13 +268,14 @@ class TestUpdateAptSoftwares(unittest.TestCase):
     self.assertIn("os_eol_critical", last_call.kwargs)
 
   # 正常系: run関数のテスト
+  @patch("src.linux.update_apt_softwares.get_os_display_string", return_value="Ubuntu 22.04.5 LTS")
   @patch("src.linux.update_apt_softwares.run_apt_update")
   @patch("src.linux.update_apt_softwares.get_apt_full_upgrade_target")
   @patch("src.linux.update_apt_softwares.run_apt_full_upgrade")
   @patch("src.linux.update_apt_softwares.is_root", return_value=True)
   @patch("src.linux.update_apt_softwares.logger")
   @patch("src.linux.update_apt_softwares.GitHubIssue")
-  def test_run_success(self, mock_github_issue, mock_logger, mock_is_root, mock_run_apt_full_upgrade, mock_get_apt_full_upgrade_target, mock_run_apt_update):
+  def test_run_success(self, mock_github_issue, mock_logger, mock_is_root, mock_run_apt_full_upgrade, mock_get_apt_full_upgrade_target, mock_run_apt_update, mock_get_os_display_string):
     # モックの設定
     mock_issue_instance = MagicMock()
     mock_github_issue.return_value = mock_issue_instance
@@ -289,6 +290,9 @@ class TestUpdateAptSoftwares(unittest.TestCase):
     # アサーション
     mock_logger.info.assert_called()  # ログが出力されていることを確認
     mock_issue_instance.atomic_update_with_retry.assert_called()  # GitHubIssueの原子的更新が呼ばれていることを確認
+    # operation_system が全呼び出しに渡されていることを確認
+    for call_args in mock_issue_instance.atomic_update_with_retry.call_args_list:
+      self.assertEqual(call_args.kwargs["operation_system"], "Ubuntu 22.04.5 LTS")
 
   # 異常系: root権限がない場合
   @patch("src.linux.update_apt_softwares.is_root", return_value=False)
@@ -301,11 +305,12 @@ class TestUpdateAptSoftwares(unittest.TestCase):
     mock_logger.error.assert_called_with("This script must be run as root.")
 
   # 修正: test_run_apt_update_exceptionでgithub_issueをモックとして渡す
+  @patch("src.linux.update_apt_softwares.get_os_display_string", return_value="Ubuntu 22.04.5 LTS")
   @patch("src.linux.update_apt_softwares.run_apt_update", side_effect=Exception("Update failed"))
   @patch("src.linux.update_apt_softwares.is_root", return_value=True)
   @patch("src.linux.update_apt_softwares.logger")
   @patch("src.linux.update_apt_softwares.GitHubIssue")
-  def test_run_apt_update_exception(self, mock_github_issue, mock_logger, mock_is_root, mock_run_apt_update):
+  def test_run_apt_update_exception(self, mock_github_issue, mock_logger, mock_is_root, mock_run_apt_update, mock_get_os_display_string):
     mock_issue_instance = MagicMock()
     mock_github_issue.return_value = mock_issue_instance
 
@@ -314,6 +319,9 @@ class TestUpdateAptSoftwares(unittest.TestCase):
 
     # アサーション
     mock_logger.error.assert_called_with("An error occurred during the upgrade: Update failed")
+    # 例外系でも operation_system が渡されていることを確認
+    call_args = mock_issue_instance.atomic_update_with_retry.call_args
+    self.assertEqual(call_args.kwargs["operation_system"], "Ubuntu 22.04.5 LTS")
 
   # 正常系: dpkg --audit の出力が空 (中断状態でない)
   @patch("subprocess.run")

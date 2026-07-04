@@ -10,7 +10,7 @@ import json
 import psutil
 import traceback
 
-from ..os_eol import get_os_eol_info
+from ..os_eol import get_os_eol_info, get_os_display_string
 
 def update_scoop_repos():
   # Scoop update を実行し、リポジトリを更新する
@@ -323,7 +323,9 @@ def run(github_issue, hostname) -> None:
     try:
         # OS EOL 情報を取得
         os_eol_info, is_critical = get_os_eol_info()
-        
+        # OS 表示文字列を取得
+        os_display = get_os_display_string()
+
         # Set initial status to running
         github_issue.atomic_update_with_retry(
             computer_name=hostname,
@@ -333,6 +335,7 @@ def run(github_issue, hostname) -> None:
             status="running",
             os_eol=os_eol_info,
             os_eol_critical=is_critical,
+            operation_system=os_display,
         )
 
         update_scoop_repos()
@@ -356,6 +359,7 @@ def run(github_issue, hostname) -> None:
             status="running",
             os_eol=os_eol_info,
             os_eol_critical=is_critical,
+            operation_system=os_display,
         )
 
         print("Updating not running applications...")
@@ -388,6 +392,7 @@ def run(github_issue, hostname) -> None:
             status=status,
             os_eol=os_eol_info,
             os_eol_critical=is_critical,
+            operation_system=os_display,
         )
 
         # scoop のクリーンアップを実行
@@ -408,7 +413,9 @@ def run(github_issue, hostname) -> None:
         except Exception:
             os_eol_info = "不明"
             is_critical = False
-        
+        # OS 表示文字列を取得 (エラー時も含める)
+        os_display = get_os_display_string()
+
         # Set error status atomically
         github_issue.atomic_update_with_retry(
             computer_name=hostname,
@@ -418,4 +425,5 @@ def run(github_issue, hostname) -> None:
             status="failed",
             os_eol=os_eol_info,
             os_eol_critical=is_critical,
+            operation_system=os_display,
         )
