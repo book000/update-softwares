@@ -109,7 +109,7 @@ class GitHubIssue:
 
     return False
 
-  def atomic_update_with_retry(self, computer_name, package_manager, status, upgraded, failed, os_eol=None, os_eol_critical=False, operation_system=None, max_retries=3):
+  def atomic_update_with_retry(self, computer_name, package_manager, status, upgraded, failed, os_eol=None, os_eol_critical=False, max_retries=3, operation_system=None):
     """
     Atomically update the issue body with retry logic to handle concurrent updates.
     This method combines update processing and GitHub Issue body reflection into a single operation.
