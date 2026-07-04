@@ -267,6 +267,29 @@ def run(github_issue, hostname):
       os_eol_critical=is_critical,
     )
 
+    if is_dpkg_broken():
+      logger.warning("dpkg is in an interrupted state; running dpkg --configure -a...")
+      if run_dpkg_configure():
+        logger.info("dpkg --configure -a completed successfully.")
+        github_issue.comment(
+          f"{github_issue.get_markdown_computer_name(hostname)} : dpkg の中断状態を検出したため `dpkg --configure -a` を実行しました。"
+        )
+      else:
+        logger.error("dpkg --configure -a failed.")
+        github_issue.comment(
+          f"{github_issue.get_markdown_computer_name(hostname)} : dpkg の中断状態を検出し `dpkg --configure -a` を実行しましたが失敗しました。手動対応が必要です。"
+        )
+        github_issue.atomic_update_with_retry(
+          computer_name=hostname,
+          package_manager="apt",
+          upgraded="",
+          failed="1",
+          status="failed",
+          os_eol=os_eol_info,
+          os_eol_critical=is_critical,
+        )
+        return
+
     logger.info("Updating package list...")
     run_apt_update()
     _, to_upgrade, to_install, to_remove = get_apt_full_upgrade_target()

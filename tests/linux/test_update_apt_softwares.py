@@ -180,6 +180,84 @@ class TestUpdateAptSoftwares(unittest.TestCase):
     self.assertFalse(result)
     mock_system.assert_called_once_with("apt-get -y dist-upgrade")
 
+  # 正常系: dpkgが中断状態でない場合、run_dpkg_configure()は呼ばれず既存フローが継続する
+  @patch("src.linux.update_apt_softwares.run_apt_update")
+  @patch("src.linux.update_apt_softwares.get_apt_full_upgrade_target")
+  @patch("src.linux.update_apt_softwares.run_apt_full_upgrade")
+  @patch("src.linux.update_apt_softwares.run_dpkg_configure")
+  @patch("src.linux.update_apt_softwares.is_dpkg_broken", return_value=False)
+  @patch("src.linux.update_apt_softwares.is_root", return_value=True)
+  @patch("src.linux.update_apt_softwares.logger")
+  @patch("src.linux.update_apt_softwares.GitHubIssue")
+  def test_run_dpkg_not_broken(self, mock_github_issue, mock_logger, mock_is_root, mock_is_dpkg_broken, mock_run_dpkg_configure, mock_run_apt_full_upgrade, mock_get_apt_full_upgrade_target, mock_run_apt_update):
+    mock_issue_instance = MagicMock()
+    mock_github_issue.return_value = mock_issue_instance
+    mock_run_apt_update.return_value = MagicMock()
+    mock_get_apt_full_upgrade_target.return_value = (MagicMock(), [], [], [])
+    mock_run_apt_full_upgrade.return_value = True
+
+    from src.linux.update_apt_softwares import run
+    run(mock_issue_instance, "test-host")
+
+    mock_is_dpkg_broken.assert_called_once()
+    mock_run_dpkg_configure.assert_not_called()
+    mock_issue_instance.comment.assert_not_called()
+    mock_run_apt_update.assert_called()
+
+  # 正常系: dpkgが中断状態で修復に成功した場合、コメントを追加して既存フローが継続する
+  @patch("src.linux.update_apt_softwares.run_apt_update")
+  @patch("src.linux.update_apt_softwares.get_apt_full_upgrade_target")
+  @patch("src.linux.update_apt_softwares.run_apt_full_upgrade")
+  @patch("src.linux.update_apt_softwares.run_dpkg_configure", return_value=True)
+  @patch("src.linux.update_apt_softwares.is_dpkg_broken", return_value=True)
+  @patch("src.linux.update_apt_softwares.is_root", return_value=True)
+  @patch("src.linux.update_apt_softwares.logger")
+  @patch("src.linux.update_apt_softwares.GitHubIssue")
+  def test_run_dpkg_broken_configure_success(self, mock_github_issue, mock_logger, mock_is_root, mock_is_dpkg_broken, mock_run_dpkg_configure, mock_run_apt_full_upgrade, mock_get_apt_full_upgrade_target, mock_run_apt_update):
+    mock_issue_instance = MagicMock()
+    mock_github_issue.return_value = mock_issue_instance
+    mock_issue_instance.get_markdown_computer_name.return_value = "test-host"
+    mock_run_apt_update.return_value = MagicMock()
+    mock_get_apt_full_upgrade_target.return_value = (MagicMock(), [], [], [])
+    mock_run_apt_full_upgrade.return_value = True
+
+    from src.linux.update_apt_softwares import run
+    run(mock_issue_instance, "test-host")
+
+    mock_run_dpkg_configure.assert_called_once()
+    mock_issue_instance.comment.assert_called_once()
+    mock_run_apt_update.assert_called()
+
+  # 異常系: dpkgが中断状態で修復に失敗した場合、failedで即時中断する
+  @patch("src.linux.update_apt_softwares.run_apt_update")
+  @patch("src.linux.update_apt_softwares.get_apt_full_upgrade_target")
+  @patch("src.linux.update_apt_softwares.run_apt_full_upgrade")
+  @patch("src.linux.update_apt_softwares.run_dpkg_configure", return_value=False)
+  @patch("src.linux.update_apt_softwares.is_dpkg_broken", return_value=True)
+  @patch("src.linux.update_apt_softwares.is_root", return_value=True)
+  @patch("src.linux.update_apt_softwares.logger")
+  @patch("src.linux.update_apt_softwares.GitHubIssue")
+  def test_run_dpkg_broken_configure_failure(self, mock_github_issue, mock_logger, mock_is_root, mock_is_dpkg_broken, mock_run_dpkg_configure, mock_run_apt_full_upgrade, mock_get_apt_full_upgrade_target, mock_run_apt_update):
+    mock_issue_instance = MagicMock()
+    mock_github_issue.return_value = mock_issue_instance
+    mock_issue_instance.get_markdown_computer_name.return_value = "test-host"
+
+    from src.linux.update_apt_softwares import run
+    run(mock_issue_instance, "test-host")
+
+    mock_run_dpkg_configure.assert_called_once()
+    mock_issue_instance.comment.assert_called_once()
+    mock_run_apt_update.assert_not_called()
+
+    last_call = mock_issue_instance.atomic_update_with_retry.call_args_list[-1]
+    self.assertEqual(last_call.kwargs["computer_name"], "test-host")
+    self.assertEqual(last_call.kwargs["package_manager"], "apt")
+    self.assertEqual(last_call.kwargs["upgraded"], "")
+    self.assertEqual(last_call.kwargs["failed"], "1")
+    self.assertEqual(last_call.kwargs["status"], "failed")
+    self.assertIn("os_eol", last_call.kwargs)
+    self.assertIn("os_eol_critical", last_call.kwargs)
+
   # 正常系: run関数のテスト
   @patch("src.linux.update_apt_softwares.run_apt_update")
   @patch("src.linux.update_apt_softwares.get_apt_full_upgrade_target")
