@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 from subprocess import CalledProcessError
 import os
 
-from src.linux.update_apt_softwares import is_root, run_apt_update, get_apt_full_upgrade_target, run_apt_full_upgrade, _is_installed_version
+from src.linux.update_apt_softwares import is_root, run_apt_update, get_apt_full_upgrade_target, run_apt_full_upgrade, _is_installed_version, is_dpkg_broken
 
 class TestUpdateAptSoftwares(unittest.TestCase):
   # 正常系: root権限での実行確認
@@ -227,6 +227,38 @@ class TestUpdateAptSoftwares(unittest.TestCase):
 
     # アサーション
     mock_logger.error.assert_called_with("An error occurred during the upgrade: Update failed")
+
+  # 正常系: dpkg --audit の出力が空 (中断状態でない)
+  @patch("subprocess.run")
+  def test_is_dpkg_broken_false(self, mock_run):
+    mock_result = MagicMock()
+    mock_result.stdout = ""
+    mock_run.return_value = mock_result
+
+    self.assertFalse(is_dpkg_broken())
+    mock_run.assert_called_once_with(
+      ["dpkg", "--audit"],
+      text=True,
+      capture_output=True,
+    )
+
+  # 異常系: dpkg --audit の出力が非空 (中断状態)
+  @patch("subprocess.run")
+  def test_is_dpkg_broken_true(self, mock_run):
+    mock_result = MagicMock()
+    mock_result.stdout = "libfoo:\n Package is in a very bad inconsistent state.\n"
+    mock_run.return_value = mock_result
+
+    self.assertTrue(is_dpkg_broken())
+
+  # 異常系: dpkg --audit の実行自体が失敗する
+  @patch("src.linux.update_apt_softwares.logger")
+  @patch("subprocess.run")
+  def test_is_dpkg_broken_command_error(self, mock_run, mock_logger):
+    mock_run.side_effect = OSError("dpkg not found")
+
+    self.assertFalse(is_dpkg_broken())
+    mock_logger.warning.assert_called_once()
 
   def test_is_installed_version(self):
     self.assertFalse(_is_installed_version(None))

@@ -25,6 +25,29 @@ def _is_installed_version(value):
   return normalized not in ("not installed", "not-installed", "none", "unknown")
 
 
+def is_dpkg_broken() -> bool:
+  """dpkg が中断状態 (dpkg --configure -a が必要な状態) かどうかを判定する。
+
+  dpkg --audit は破損パッケージが存在しなくても終了コード 0 を返すため、
+  check=True は使わず標準出力の有無のみで判定する。
+
+  Returns:
+      bool: 中断状態であれば True、正常であれば False。
+          dpkg --audit の実行自体が失敗した場合も False を返す
+          (検出ロジックの不備で apt 更新処理本体を止めないため)。
+  """
+  try:
+    result = subprocess.run(
+      ["dpkg", "--audit"],
+      text=True,
+      capture_output=True,
+    )
+  except OSError as e:
+    logger.warning("Failed to run dpkg --audit: %s", e)
+    return False
+  return bool(result.stdout.strip())
+
+
 def _log_apt_stderr(stderr, context):
   if not stderr:
     return
