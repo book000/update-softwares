@@ -45,6 +45,9 @@ def is_dpkg_broken() -> bool:
   except OSError as e:
     logger.warning("Failed to run dpkg --audit: %s", e)
     return False
+  if result.returncode != 0:
+    logger.warning("dpkg --audit exited with a non-zero status: %s", result.returncode)
+    return False
   return bool(result.stdout.strip())
 
 
@@ -60,7 +63,7 @@ def run_dpkg_configure() -> bool:
     result = os.system("dpkg --configure -a")
     return result == 0
   except Exception as e:
-    logger.error(f"An error occurred while running dpkg --configure -a: {e}")
+    logger.error("An error occurred while running dpkg --configure -a: %s", e)
     return False
 
 

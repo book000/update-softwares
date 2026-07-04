@@ -189,7 +189,8 @@ class TestUpdateAptSoftwares(unittest.TestCase):
   @patch("src.linux.update_apt_softwares.is_root", return_value=True)
   @patch("src.linux.update_apt_softwares.logger")
   @patch("src.linux.update_apt_softwares.GitHubIssue")
-  def test_run_dpkg_not_broken(self, mock_github_issue, mock_logger, mock_is_root, mock_is_dpkg_broken, mock_run_dpkg_configure, mock_run_apt_full_upgrade, mock_get_apt_full_upgrade_target, mock_run_apt_update):
+  @patch("src.linux.update_apt_softwares.get_os_eol_info", return_value=("不明", False))
+  def test_run_dpkg_not_broken(self, mock_get_os_eol_info, mock_github_issue, mock_logger, mock_is_root, mock_is_dpkg_broken, mock_run_dpkg_configure, mock_run_apt_full_upgrade, mock_get_apt_full_upgrade_target, mock_run_apt_update):
     mock_issue_instance = MagicMock()
     mock_github_issue.return_value = mock_issue_instance
     mock_run_apt_update.return_value = MagicMock()
@@ -213,7 +214,8 @@ class TestUpdateAptSoftwares(unittest.TestCase):
   @patch("src.linux.update_apt_softwares.is_root", return_value=True)
   @patch("src.linux.update_apt_softwares.logger")
   @patch("src.linux.update_apt_softwares.GitHubIssue")
-  def test_run_dpkg_broken_configure_success(self, mock_github_issue, mock_logger, mock_is_root, mock_is_dpkg_broken, mock_run_dpkg_configure, mock_run_apt_full_upgrade, mock_get_apt_full_upgrade_target, mock_run_apt_update):
+  @patch("src.linux.update_apt_softwares.get_os_eol_info", return_value=("不明", False))
+  def test_run_dpkg_broken_configure_success(self, mock_get_os_eol_info, mock_github_issue, mock_logger, mock_is_root, mock_is_dpkg_broken, mock_run_dpkg_configure, mock_run_apt_full_upgrade, mock_get_apt_full_upgrade_target, mock_run_apt_update):
     mock_issue_instance = MagicMock()
     mock_github_issue.return_value = mock_issue_instance
     mock_issue_instance.get_markdown_computer_name.return_value = "test-host"
@@ -240,7 +242,8 @@ class TestUpdateAptSoftwares(unittest.TestCase):
   @patch("src.linux.update_apt_softwares.is_root", return_value=True)
   @patch("src.linux.update_apt_softwares.logger")
   @patch("src.linux.update_apt_softwares.GitHubIssue")
-  def test_run_dpkg_broken_configure_failure(self, mock_github_issue, mock_logger, mock_is_root, mock_is_dpkg_broken, mock_run_dpkg_configure, mock_run_apt_full_upgrade, mock_get_apt_full_upgrade_target, mock_run_apt_update):
+  @patch("src.linux.update_apt_softwares.get_os_eol_info", return_value=("不明", False))
+  def test_run_dpkg_broken_configure_failure(self, mock_get_os_eol_info, mock_github_issue, mock_logger, mock_is_root, mock_is_dpkg_broken, mock_run_dpkg_configure, mock_run_apt_full_upgrade, mock_get_apt_full_upgrade_target, mock_run_apt_update):
     mock_issue_instance = MagicMock()
     mock_github_issue.return_value = mock_issue_instance
     mock_issue_instance.get_markdown_computer_name.return_value = "test-host"
@@ -316,6 +319,7 @@ class TestUpdateAptSoftwares(unittest.TestCase):
   @patch("subprocess.run")
   def test_is_dpkg_broken_false(self, mock_run):
     mock_result = MagicMock()
+    mock_result.returncode = 0
     mock_result.stdout = ""
     mock_run.return_value = mock_result
 
@@ -330,6 +334,7 @@ class TestUpdateAptSoftwares(unittest.TestCase):
   @patch("subprocess.run")
   def test_is_dpkg_broken_true(self, mock_run):
     mock_result = MagicMock()
+    mock_result.returncode = 0
     mock_result.stdout = "libfoo:\n Package is in a very bad inconsistent state.\n"
     mock_run.return_value = mock_result
 
@@ -340,6 +345,18 @@ class TestUpdateAptSoftwares(unittest.TestCase):
   @patch("subprocess.run")
   def test_is_dpkg_broken_command_error(self, mock_run, mock_logger):
     mock_run.side_effect = OSError("dpkg not found")
+
+    self.assertFalse(is_dpkg_broken())
+    mock_logger.warning.assert_called_once()
+
+  # 異常系: dpkg --audit が非 0 の終了コードで終了する (実行自体の失敗)
+  @patch("src.linux.update_apt_softwares.logger")
+  @patch("subprocess.run")
+  def test_is_dpkg_broken_non_zero_returncode(self, mock_run, mock_logger):
+    mock_result = MagicMock()
+    mock_result.returncode = 2
+    mock_result.stdout = "libfoo:\n Package is in a very bad inconsistent state.\n"
+    mock_run.return_value = mock_result
 
     self.assertFalse(is_dpkg_broken())
     mock_logger.warning.assert_called_once()
