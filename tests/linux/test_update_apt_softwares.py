@@ -225,7 +225,10 @@ class TestUpdateAptSoftwares(unittest.TestCase):
     run(mock_issue_instance, "test-host")
 
     mock_run_dpkg_configure.assert_called_once()
-    mock_issue_instance.comment.assert_called_once()
+    mock_issue_instance.get_markdown_computer_name.assert_called_with("test-host")
+    mock_issue_instance.comment.assert_called_once_with(
+      "test-host : dpkg の中断状態を検出したため `dpkg --configure -a` を実行しました。"
+    )
     mock_run_apt_update.assert_called()
 
   # 異常系: dpkg が中断状態で修復に失敗した場合、failed で即時中断する
@@ -246,7 +249,10 @@ class TestUpdateAptSoftwares(unittest.TestCase):
     run(mock_issue_instance, "test-host")
 
     mock_run_dpkg_configure.assert_called_once()
-    mock_issue_instance.comment.assert_called_once()
+    mock_issue_instance.get_markdown_computer_name.assert_called_with("test-host")
+    mock_issue_instance.comment.assert_called_once_with(
+      "test-host : dpkg の中断状態を検出し `dpkg --configure -a` を実行しましたが失敗しました。手動対応が必要です。"
+    )
     mock_run_apt_update.assert_not_called()
 
     last_call = mock_issue_instance.atomic_update_with_retry.call_args_list[-1]
