@@ -1,102 +1,36 @@
-# GitHub Copilot Instructions
+# GitHub Copilot レビュー指示
 
-## プロジェクト概要
+このリポジトリのプルリクエストをレビューする際の観点をまとめる。開発手順ではなくレビュー基準を記載する。
 
-- 目的: Linux (apt) と Windows (scoop) の複数マシンに対するパッケージ更新を自動化し、GitHub Issues API と統合して進捗を追跡・報告するツール
-- 主な機能:
-  - Linux システムの apt パッケージ更新 (dist-upgrade)
-  - Windows システムの scoop パッケージ更新
-  - GitHub Issues API との統合 (issue ステータスの取得・更新)
-  - アトミック更新メカニズム (並行実行時の競合防止)
-  - OS の End-of-Life (EOL) 情報の取得と表示
-  - ログ機能 (ファイルとコンソール出力)
-- 対象ユーザー: Linux / Windows マシンを複数管理する開発者・システム管理者
+## プロジェクト背景
 
-## 共通ルール
+Linux (apt) と Windows (scoop) の複数マシンに対するパッケージ更新を自動化し、GitHub Issues API と統合して進捗を追跡・報告する Python ツール。エントリは `src/__main__.py`、コアの `GitHubIssue` クラスは `src/__init__.py`、プラットフォーム実装は `src/linux/`・`src/windows/`、OS EOL 取得は `src/os_eol.py`。
 
-- 会話は日本語で行う。
-- PR とコミットは Conventional Commits に従う。`<description>` は日本語で記載する。
-  - 形式: `<type>: <description>` (例: `feat: ユーザー認証機能を追加`)
-- 日本語と英数字の間には半角スペースを入れる。
-- コード内のコメントは日本語で記載する。
-- エラーメッセージは英語で記載する。
+## 重点的にレビューする点
+
+- **並行実行時の競合**: `GitHubIssue` のアトミック更新はリトライロジックで競合を防ぐ設計。Issue の取得・更新を伴う変更では、この保護が外れていないか確認する。
+- **エラーハンドリング**: `subprocess` / `requests` / `os.system` 呼び出しの失敗を握りつぶしていないか。終了コードや例外を確認しているか。
+- **機密情報**: GitHub トークンは `data/github_token.txt` 管理でコミット禁止。ログや例外メッセージに認証情報・個人情報が出力されていないか。
+- **プラットフォーム分離**: Linux (apt) と Windows (scoop) のロジックが混在していないか。片方の変更が他方を壊していないか。
+- **テスト**: 新機能・バグ修正に対応するユニットテストが追加されているか。外部依存 (requests, subprocess, os.system) がモック化されているか。
+
+## 規約 (lint による強制ではなく既存慣習)
+
+正式なリンタ設定はない。以下は `.editorconfig` と既存コードで統一されている慣習。逸脱を指摘する。
+
+- `.editorconfig` 準拠: UTF-8 / LF / 最終行に改行 / 行末空白の除去。**Python は 2 スペースインデント** (`indent_size = 2`)。
+- 命名: Python 標準の snake_case。
+- docstring: 関数・クラスに日本語で記載 (Google style の Args / Returns 形式)。
+- コメント: 日本語。エラーメッセージ: 英語。
+- 日本語と英数字の間: 半角スペース。
+- コミット / PR タイトル: Conventional Commits (`<type>: <description>`、`<description>` は日本語)。
+
+## フラグすべきでない既知パターン (誤検知しやすい)
+
+- **Python の 2 スペースインデント**: PEP 8 の 4 スペースと異なるが `.editorconfig` で意図的に定義されている。指摘しない。
+- **Windows scoop アップグレードの対話的 `input()`**: 実行中アプリの停止可否をユーザーに確認する仕様。自動化を前提に「対話は削除すべき」と指摘しない。
+- **エラーメッセージ先頭の絵文字**: 既存メッセージで統一されたスタイル。バグではない。
 
 ## 技術スタック
 
-- 言語: Python 3.8-3.13 (CI で検証済み、推奨 3.12 以上)
-- パッケージマネージャー: pip
-- 主要な依存関係:
-  - requests==2.32.4 (GitHub API 通信、endoflife.date API 呼び出し)
-  - psutil==7.2.1 (Windows プロセス管理)
-- テストランナー: pytest (pytest.ini で slow / integration / unit マーカーを定義し、CI から実行)
-- テストフレームワーク: unittest (標準ライブラリ、テスト記述用。pytest から実行)
-- CI/CD: GitHub Actions (Linux CI, Windows CI)
-
-## コーディング規約
-
-- Python 命名規則に従う (snake_case)
-- 関数・クラスには docstring を日本語で記載する (Google style 形式の Args / Returns 付き)
-- .editorconfig に従う (UTF-8, LF, 2 スペースインデント)
-- 正式なリンティング設定はないが、既存コードスタイルに従う
-
-## 開発コマンド
-
-```bash
-# 依存関係のインストール
-pip install -r requirements.txt
-
-# テスト実行用に pytest もインストール
-pip install pytest
-
-# テスト実行 (推奨: CI と同様に pytest を使用)
-pytest tests/
-
-# Linux 固有テスト
-pytest tests/linux
-
-# Windows 固有テスト
-pytest tests/windows
-
-# または unittest でも実行可能
-python3 -m unittest discover -s tests -p "test_*.py"
-
-# アプリケーション実行 (前提: data/github_token.txt に有効な GitHub トークンを記載)
-python3 -m src <ISSUE_NUMBER>
-```
-
-## テスト方針
-
-- テストランナー: pytest (pytest.ini で slow / integration / unit マーカーを定義し、CI から実行)
-- テストフレームワーク: unittest (標準ライブラリ、テスト記述用。pytest から実行)
-- 包括的なモッキング: requests, subprocess, os.system などはモック化する
-- プラットフォーム分離: Linux/Windows テストは分離する
-- テストマーカー: slow (約 25 秒の Windows テスト), integration, unit (いずれも pytest.ini のマーカー)
-- テスト実行時のキャンセルは避ける (特に Windows テスト)
-
-## セキュリティ / 機密情報
-
-- GitHub トークンは `data/github_token.txt` で管理し、Git にコミットしない。
-- ログに個人情報や認証情報を出力しない。
-- センシティブな情報をコードに含めない。
-
-## ドキュメント更新
-
-以下のドキュメントは変更時に更新する:
-
-- .github/copilot-instructions.md: 開発ルールや作業手順を変更したとき
-- requirements.txt: 依存関係の追加・削除時
-- その他のドキュメント (例: AGENTS.md, CLAUDE.md など): 内容変更時
-
-README.md は現在このリポジトリには存在しないが、将来追加された場合はプロジェクト概要・セットアップ手順・使い方の変更に応じて更新対象とする。
-
-## リポジトリ固有
-
-- **GitHub トークン必須**: `data/github_token.txt` に有効なトークンを記載する。
-- **Linux: root 権限必須**: apt-get 操作のため。
-- **Windows: scoop インストール必須**: scoop コマンドを使用する。
-- **GitHub Issue 形式要件**: Issue 本文に markdown テーブルを含み、各行末に `<!-- update-softwares#hostname#package_manager -->` コメントを含む必要がある。
-- **Renovate 統合**: 外部テンプレート使用 (`github>book000/templates//renovate/base-public`)。Renovate が作成した既存のプルリクエストに対して、追加コミットや更新を行わない。
-- **アトミック更新メカニズム**: 並行実行時の競合を防止するため、リトライロジックを実装している。
-- **OS EOL 情報表示**: endoflife.date API を利用し、EOL 日が 90 日未満の場合はステータスを赤くマークする。
-- **ログシステム**: ファイルログ (DEBUG) + コンソール出力 (INFO)。Linux `/opt/update-softwares/logs`, Windows ユーザープロファイル。
-- **Windows scoop アップグレードの特殊性**: 実行中アプリケーションは対話形式で確認 (input() で Y/n)。アプリ停止 → アップグレード → 再起動。
+Python 3.8-3.13 (CI で検証、推奨 3.12 以上) / pip。依存は `requirements.txt` にピン留め (`requests`, `psutil`)。テストは pytest (`pytest.ini` で slow / integration / unit マーカーを定義)、記述は標準 unittest。CI は GitHub Actions (Linux / Windows)。
