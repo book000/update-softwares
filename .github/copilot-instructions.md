@@ -33,4 +33,4 @@ Linux (apt) と Windows (scoop) の複数マシンに対するパッケージ更
 
 ## 技術スタック
 
-Python 3.8-3.13 (CI で検証、推奨 3.12 以上) / pip。依存は `requirements.txt` にピン留め (`requests`, `psutil`)。テストは pytest (`pytest.ini` で slow / integration / unit マーカーを定義)、記述は標準 unittest。CI は GitHub Actions (Linux / Windows)。
+Python 3.10-3.13 (CI で検証、推奨 3.12 以上) / pip。依存は `requirements.txt` にピン留め (`requests`, `psutil`)。テストは pytest (`pytest.ini` で slow / integration / unit マーカーを定義)、記述は標準 unittest。CI は GitHub Actions (Linux / Windows)。
