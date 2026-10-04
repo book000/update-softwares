@@ -1,7 +1,6 @@
 """OS End-of-Life (EOL) 情報を取得するモジュール"""
 import os
 import platform
-import subprocess
 import requests
 import time
 from datetime import datetime
@@ -29,85 +28,38 @@ def get_os_version_info() -> Tuple[str, str]:
 def get_windows_version_info() -> Tuple[str, str]:
   """
   Windows のバージョン情報を取得する
-    
-  Windows Management Instrumentation Command-line (WMIC) を使用して、
-  システムの Caption と Version を取得し、Windows のバージョンを判定します。
+
+  Windows レジストリからビルド番号と DisplayVersion を読み取り、
+  Windows のバージョンを判定します。
   詳細バージョン (例: 21H2, 22H2, 23H2, 24H2, 25H2) の取得を試みます。
-    
+
   Returns:
     Tuple[str, str]: ("Windows", "バージョン番号")
     バージョン番号は "10-22H2" や "11-24H2" のような形式
     詳細バージョンが不明な場合は "10" または "11"
-    
-  Raises:
-    subprocess.TimeoutExpired: WMIC コマンドがタイムアウトした場合
   """
   try:
-    # WMIC で Windows バージョン情報を取得
-    result = subprocess.run(
-      ['wmic', 'os', 'get', 'Caption,Version', '/value'],
-      capture_output=True,
-      text=True,
-      timeout=10
-    )
-        
-    caption = ""
-    version = ""
-        
-    for line in result.stdout.split('\n'):
-      if 'Caption=' in line:
-        caption = line.split('=', 1)[1].strip()
-      elif 'Version=' in line:
-        version = line.split('=', 1)[1].strip()
-        
-    # レジストリから DisplayVersion (21H2, 22H2 など) を取得
-    display_version = None
-    try:
-      reg_result = subprocess.run(
-        ['reg', 'query', 'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion', '/v', 'DisplayVersion'],
-        capture_output=True,
-        text=True,
-        timeout=5
-      )
-      if reg_result.returncode == 0:
-        for line in reg_result.stdout.split('\n'):
-          if 'DisplayVersion' in line:
-            parts = line.strip().split()
-            if len(parts) >= 3:
-              display_version = parts[-1]
-              break
-    except Exception as e:
-      # レジストリから DisplayVersion の取得に失敗した場合は無視します。
-      # これは一部の Windows 環境で DisplayVersion が存在しない場合があるためです。
-      logger.debug(f"DisplayVersion の取得に失敗: {e}")
-        
-    # Windows 10/11 の判定
-    major_version = None
-    if "Windows 10" in caption:
-      major_version = "10"
-    elif "Windows 11" in caption:
-      major_version = "11"
-    elif version:
-      # ビルド番号から判定
-      build = version.split('.')[-1] if '.' in version else version
+    import winreg
+
+    registry_path = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, registry_path) as key:
       try:
-        build_num = int(build)
-        if build_num >= 22000:
-          major_version = "11"
-        else:
-          major_version = "10"
-      except ValueError:
-        # build番号が整数に変換できない場合は、バージョン判定をスキップして Unknown を返すため、例外を無視します
-        pass
-        
-    # バージョン文字列を構築
-    if major_version and display_version:
+        build = winreg.QueryValueEx(key, "CurrentBuildNumber")[0]
+      except FileNotFoundError:
+        build = winreg.QueryValueEx(key, "CurrentBuild")[0]
+
+      try:
+        display_version = winreg.QueryValueEx(key, "DisplayVersion")[0]
+      except FileNotFoundError:
+        display_version = None
+
+    build_num = int(build)
+    major_version = "11" if build_num >= 22000 else "10"
+    if display_version:
       return ("Windows", f"{major_version}-{display_version}")
-    elif major_version:
-      return ("Windows", major_version)
-    else:
-      return ("Windows", "Unknown")
-  except Exception:
+    return ("Windows", major_version)
+  except Exception as e:
+    logger.warning(f"Failed to read Windows version from registry: {e}")
     return ("Windows", "Unknown")
 
 
