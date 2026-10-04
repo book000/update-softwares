@@ -16,109 +16,117 @@ from src.os_eol import (
 
 class TestOSEOL(unittest.TestCase):
   """OS EOL 機能のテストケース"""
-    
+
+  def _mock_windows_registry(self, values):
+    """指定された Windows レジストリ値を返す winreg モックを作る"""
+    winreg = MagicMock()
+    winreg.HKEY_LOCAL_MACHINE = object()
+    key = MagicMock()
+    winreg.OpenKey.return_value.__enter__.return_value = key
+
+    def query_value(_key, name):
+      if name not in values:
+        raise FileNotFoundError(name)
+      return values[name], 1
+
+    winreg.QueryValueEx.side_effect = query_value
+    return winreg
+
   @patch('os.name', 'nt')
-  @patch('subprocess.run')
-  def test_get_windows_version_info_windows_10(self, mock_run):
+  def test_get_windows_version_info_windows_10(self):
     """Windows 10 のバージョン情報取得テスト"""
-    mock_result = MagicMock()
-    mock_result.stdout = "Caption=Microsoft Windows 10 Pro\nVersion=10.0.19045\n"
-    mock_run.return_value = mock_result
-        
-    os_name, version = get_windows_version_info()
-        
+    winreg = self._mock_windows_registry({"CurrentBuildNumber": "19045"})
+
+    with patch.dict('sys.modules', {'winreg': winreg}):
+      os_name, version = get_windows_version_info()
+
     self.assertEqual(os_name, "Windows")
     self.assertEqual(version, "10")
-    
+
   @patch('os.name', 'nt')
-  @patch('subprocess.run')
-  def test_get_windows_version_info_windows_11(self, mock_run):
+  def test_get_windows_version_info_windows_11(self):
     """Windows 11 のバージョン情報取得テスト"""
-    mock_result = MagicMock()
-    mock_result.stdout = "Caption=Microsoft Windows 11 Pro\nVersion=10.0.22621\n"
-    mock_run.return_value = mock_result
-        
-    os_name, version = get_windows_version_info()
-        
+    winreg = self._mock_windows_registry({"CurrentBuildNumber": "22621"})
+
+    with patch.dict('sys.modules', {'winreg': winreg}):
+      os_name, version = get_windows_version_info()
+
     self.assertEqual(os_name, "Windows")
     self.assertEqual(version, "11")
-    
+
   @patch('os.name', 'nt')
-  @patch('subprocess.run')
-  def test_get_windows_version_info_by_build_number(self, mock_run):
+  def test_get_windows_version_info_by_build_number(self):
     """ビルド番号から Windows バージョンを判定するテスト"""
-    mock_result = MagicMock()
-    mock_result.stdout = "Caption=Microsoft Windows\nVersion=10.0.22000\n"
-    mock_run.return_value = mock_result
-        
-    os_name, version = get_windows_version_info()
-        
+    winreg = self._mock_windows_registry({"CurrentBuildNumber": "22000"})
+
+    with patch.dict('sys.modules', {'winreg': winreg}):
+      os_name, version = get_windows_version_info()
+
     self.assertEqual(os_name, "Windows")
     self.assertEqual(version, "11")  # ビルド 22000 以上は Windows 11
-    
+
   @patch('os.name', 'nt')
-  @patch('subprocess.run')
-  def test_get_windows_version_info_with_display_version_22h2(self, mock_run):
+  def test_get_windows_version_info_with_display_version_22h2(self):
     """Windows 10 22H2 の詳細バージョン取得テスト"""
-    # WMIC の結果
-    wmic_result = MagicMock()
-    wmic_result.stdout = "Caption=Microsoft Windows 10 Pro\nVersion=10.0.19045\n"
-    wmic_result.returncode = 0
-        
-    # レジストリの結果
-    reg_result = MagicMock()
-    reg_result.stdout = "DisplayVersion    REG_SZ    22H2\n"
-    reg_result.returncode = 0
-        
-    mock_run.side_effect = [wmic_result, reg_result]
-        
-    os_name, version = get_windows_version_info()
-        
+    winreg = self._mock_windows_registry({
+      "CurrentBuildNumber": "19045",
+      "DisplayVersion": "22H2",
+    })
+
+    with patch.dict('sys.modules', {'winreg': winreg}):
+      os_name, version = get_windows_version_info()
+
     self.assertEqual(os_name, "Windows")
     self.assertEqual(version, "10-22H2")
-    
+
   @patch('os.name', 'nt')
-  @patch('subprocess.run')
-  def test_get_windows_version_info_with_display_version_24h2(self, mock_run):
+  def test_get_windows_version_info_with_display_version_24h2(self):
     """Windows 11 24H2 の詳細バージョン取得テスト"""
-    # WMIC の結果
-    wmic_result = MagicMock()
-    wmic_result.stdout = "Caption=Microsoft Windows 11 Pro\nVersion=10.0.22631\n"
-    wmic_result.returncode = 0
-        
-    # レジストリの結果
-    reg_result = MagicMock()
-    reg_result.stdout = "DisplayVersion    REG_SZ    24H2\n"
-    reg_result.returncode = 0
-        
-    mock_run.side_effect = [wmic_result, reg_result]
-        
-    os_name, version = get_windows_version_info()
-        
+    winreg = self._mock_windows_registry({
+      "CurrentBuildNumber": "26100",
+      "DisplayVersion": "24H2",
+    })
+
+    with patch.dict('sys.modules', {'winreg': winreg}):
+      os_name, version = get_windows_version_info()
+
     self.assertEqual(os_name, "Windows")
     self.assertEqual(version, "11-24H2")
-    
+
   @patch('os.name', 'nt')
-  @patch('subprocess.run')
-  def test_get_windows_version_info_registry_error(self, mock_run):
-    """レジストリエラー時の Windows バージョン取得テスト"""
-    # WMIC の結果
-    wmic_result = MagicMock()
-    wmic_result.stdout = "Caption=Microsoft Windows 10 Pro\nVersion=10.0.19045\n"
-    wmic_result.returncode = 0
-        
-    # レジストリエラー
-    reg_result = MagicMock()
-    reg_result.returncode = 1
-    reg_result.stdout = ""
-        
-    mock_run.side_effect = [wmic_result, reg_result]
-        
-    os_name, version = get_windows_version_info()
-        
+  def test_get_windows_version_info_without_display_version(self):
+    """DisplayVersion がなくてもメジャーバージョンを返すテスト"""
+    winreg = self._mock_windows_registry({"CurrentBuildNumber": "19045"})
+
+    with patch.dict('sys.modules', {'winreg': winreg}):
+      os_name, version = get_windows_version_info()
+
     self.assertEqual(os_name, "Windows")
-    self.assertEqual(version, "10")  # DisplayVersion なしでメジャーバージョンのみ
-    
+    self.assertEqual(version, "10")
+
+  @patch('os.name', 'nt')
+  def test_get_windows_version_info_current_build_fallback(self):
+    """CurrentBuildNumber がなくても CurrentBuild から判定するテスト"""
+    winreg = self._mock_windows_registry({"CurrentBuild": "26100"})
+
+    with patch.dict('sys.modules', {'winreg': winreg}):
+      os_name, version = get_windows_version_info()
+
+    self.assertEqual(os_name, "Windows")
+    self.assertEqual(version, "11")
+
+  @patch('os.name', 'nt')
+  def test_get_windows_version_info_registry_error(self):
+    """レジストリを読めない場合は Unknown を返すテスト"""
+    winreg = self._mock_windows_registry({})
+    winreg.OpenKey.side_effect = OSError("registry unavailable")
+
+    with patch.dict('sys.modules', {'winreg': winreg}):
+      os_name, version = get_windows_version_info()
+
+    self.assertEqual(os_name, "Windows")
+    self.assertEqual(version, "Unknown")
+
   @patch('os.path.exists')
   @patch('builtins.open', mock_open(read_data='NAME="Ubuntu"\nVERSION_ID="22.04"\n'))
   def test_get_linux_version_info_ubuntu(self, mock_exists):
