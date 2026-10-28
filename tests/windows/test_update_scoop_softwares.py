@@ -15,6 +15,7 @@ from src.windows.update_scoop_softwares import (
   start_app,
   get_app_startup_command,
   cleanup_scoop,
+  post_cleanup_warning,
   run,
 )
 
@@ -31,17 +32,31 @@ class DummyGitHubIssue:
 
 
 class TestUpdateScoopSoftwares(unittest.TestCase):
-  @patch('src.windows.update_scoop_softwares.os.system', return_value=0)
-  def test_update_scoop_repos_success(self, mock_system):
+  @patch('src.windows.update_scoop_softwares.subprocess.run', return_value=MagicMock(returncode=0))
+  def test_update_scoop_repos_success(self, mock_run):
     result = update_scoop_repos()
     self.assertTrue(result)
-    mock_system.assert_called_with("scoop update")
+    mock_run.assert_called_once_with(["scoop", "update"], shell=True)
 
-  @patch('src.windows.update_scoop_softwares.os.system', side_effect=Exception("fail"))
-  def test_update_scoop_repos_failure(self, mock_system):
+  @patch('src.windows.update_scoop_softwares.time.sleep', return_value=None)
+  @patch('src.windows.update_scoop_softwares.subprocess.run', return_value=MagicMock(returncode=1))
+  def test_update_scoop_repos_nonzero_exit_retries_and_fails(self, mock_run, mock_sleep):
     result = update_scoop_repos()
     self.assertFalse(result)
-    self.assertEqual(mock_system.call_count, 5)
+    self.assertEqual(mock_run.call_count, 5)
+    self.assertEqual(mock_sleep.call_count, 4)
+
+  @patch('src.windows.update_scoop_softwares.time.sleep', return_value=None)
+  @patch('src.windows.update_scoop_softwares.subprocess.run', side_effect=[MagicMock(returncode=1), MagicMock(returncode=0)])
+  def test_update_scoop_repos_succeeds_after_retry(self, mock_run, mock_sleep):
+    self.assertTrue(update_scoop_repos())
+    self.assertEqual(mock_run.call_count, 2)
+
+  @patch('src.windows.update_scoop_softwares.time.sleep', return_value=None)
+  @patch('src.windows.update_scoop_softwares.subprocess.run', side_effect=OSError("fail"))
+  def test_update_scoop_repos_oserror_retries_and_fails(self, mock_run, mock_sleep):
+    self.assertFalse(update_scoop_repos())
+    self.assertEqual(mock_run.call_count, 5)
 
   @patch('src.windows.update_scoop_softwares.os.popen')
   def test_get_scoop_status_empty(self, mock_popen):
@@ -110,17 +125,26 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
       self.assertIn('app1', result)
       self.assertNotIn('app2', result)
 
-  @patch('src.windows.update_scoop_softwares.os.system', return_value=0)
-  def test_update_scoop_apps_success(self, mock_system):
+  @patch('src.windows.update_scoop_softwares.subprocess.run', return_value=MagicMock(returncode=0))
+  def test_update_scoop_apps_success(self, mock_run):
     result = update_scoop_apps(['a', 'b'])
     self.assertEqual(result, {'a': True, 'b': True})
-    self.assertEqual(mock_system.call_count, 2)
+    self.assertEqual(mock_run.call_count, 2)
+    mock_run.assert_any_call(["scoop", "update", "a"], shell=True)
+    mock_run.assert_any_call(["scoop", "update", "b"], shell=True)
 
-  @patch('src.windows.update_scoop_softwares.os.system', side_effect=Exception('err'))
+  @patch('src.windows.update_scoop_softwares.subprocess.run', return_value=MagicMock(returncode=1))
   @patch('src.windows.update_scoop_softwares.time.sleep', return_value=None)
-  def test_update_scoop_apps_failure(self, mock_sleep, mock_system):
+  def test_update_scoop_apps_failure(self, mock_sleep, mock_run):
     result = update_scoop_apps(['a'])
-    self.assertFalse(result['a'])
+    self.assertEqual(result, {'a': False})
+    self.assertEqual(mock_run.call_count, 5)
+
+  @patch('src.windows.update_scoop_softwares.subprocess.run', side_effect=[MagicMock(returncode=1)] * 5 + [MagicMock(returncode=0)])
+  @patch('src.windows.update_scoop_softwares.time.sleep', return_value=None)
+  def test_update_scoop_apps_failure_does_not_stop_next_app(self, mock_sleep, mock_run):
+    result = update_scoop_apps(['a', 'b'])
+    self.assertEqual(result, {'a': False, 'b': True})
 
   @patch('src.windows.update_scoop_softwares.psutil.Process')
   def test_stop_app(self, mock_process):
@@ -344,7 +368,7 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
   def test_cleanup_scoop_success(self, mock_run):
     mock_run.return_value = MagicMock(returncode=0, stderr='')
     result = cleanup_scoop()
-    self.assertTrue(result)
+    self.assertEqual(result, [])
     self.assertEqual(mock_run.call_count, 2)
     mock_run.assert_any_call(['scoop', 'cleanup', '*'], shell=True, capture_output=True, text=True)
     mock_run.assert_any_call(['scoop', 'cache', 'rm', '*'], shell=True, capture_output=True, text=True)
@@ -353,24 +377,39 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
   def test_cleanup_scoop_failure(self, mock_run):
     mock_run.return_value = MagicMock(returncode=1, stderr='error')
     result = cleanup_scoop()
-    self.assertFalse(result)
+    self.assertEqual(result, [('scoop cleanup *', 1), ('scoop cache rm *', 1)])
     self.assertEqual(mock_run.call_count, 2)
+
+  @patch('src.windows.update_scoop_softwares.subprocess.run')
+  def test_cleanup_scoop_partial_failure(self, mock_run):
+    mock_run.side_effect = [MagicMock(returncode=0, stderr=''), MagicMock(returncode=2, stderr='')]
+    self.assertEqual(cleanup_scoop(), [('scoop cache rm *', 2)])
 
   @patch('src.windows.update_scoop_softwares.subprocess.run', side_effect=OSError('cmd.exe not found'))
   def test_cleanup_scoop_cmd_exe_launch_failure(self, mock_run):
     # shell=True 経由でも cmd.exe 自体の起動失敗等で OSError が送出される場合があり、
-    # その際も例外を送出せず False を返す (scoop 自体が見つからない場合は returncode != 0 として test_cleanup_scoop_failure と同じ経路になる)
+    # その際も例外を送出せず、終了コード None の失敗として返す (scoop 自体が見つからない場合は returncode != 0 として test_cleanup_scoop_failure と同じ経路になる)
     result = cleanup_scoop()
-    self.assertFalse(result)
+    self.assertEqual(result, [('scoop cleanup *', None), ('scoop cache rm *', None)])
     self.assertEqual(mock_run.call_count, 2)
+
+  def test_post_cleanup_warning_lists_commands_and_exit_codes_only(self):
+    issue = DummyGitHubIssue()
+    post_cleanup_warning(issue, 'host', [('scoop cleanup *', 1), ('scoop cache rm *', None)])
+    self.assertEqual(len(issue.comments), 1)
+    body = issue.comments[0]
+    self.assertIn('## dummy-host : scoop cleanup', body)
+    self.assertIn('| `scoop cleanup *` | 1 |', body)
+    self.assertIn('| `scoop cache rm *` | failed to launch |', body)
 
   @patch('src.windows.update_scoop_softwares.get_os_display_string', return_value="Windows 11-24H2")
   @patch('src.windows.update_scoop_softwares.get_os_eol_info', return_value=("2030-01-01 (1000 日後)", False))
-  @patch('src.windows.update_scoop_softwares.cleanup_scoop', return_value=True)
+  @patch('src.windows.update_scoop_softwares.report_winget_outdated')
+  @patch('src.windows.update_scoop_softwares.cleanup_scoop', return_value=[])
   @patch('src.windows.update_scoop_softwares.get_running_apps', return_value={})
   @patch('src.windows.update_scoop_softwares.get_scoop_status', return_value=[])
   @patch('src.windows.update_scoop_softwares.update_scoop_repos', return_value=True)
-  def test_run_success_passes_operation_system(self, mock_update_repos, mock_get_status, mock_get_running_apps, mock_cleanup, mock_get_eol, mock_get_display):
+  def test_run_success_passes_operation_system(self, mock_update_repos, mock_get_status, mock_get_running_apps, mock_cleanup, mock_report_winget, mock_get_eol, mock_get_display):
     """run() が operation_system を全呼び出しに渡すことを確認するテスト
 
     `get_running_apps()` は `app_names` が空でも内部で `os.getenv("SCOOP")` を
@@ -397,6 +436,111 @@ class TestUpdateScoopSoftwares(unittest.TestCase):
 
     call_args = github_issue.atomic_update_with_retry.call_args
     self.assertEqual(call_args.kwargs["operation_system"], "Windows 11-24H2")
+
+
+class TestRunStatusFlow(unittest.TestCase):
+  """run() の最終ステータス・警告コメント・winget 表示の関係を確認するテスト"""
+
+  MODULE = 'src.windows.update_scoop_softwares'
+
+  def setUp(self):
+    self.calls = MagicMock()
+    self.issue = MagicMock()
+    self.issue.get_markdown_computer_name.return_value = "dummy-host"
+    self.issue.atomic_update_with_retry.side_effect = lambda **kwargs: self.calls.atomic(kwargs["status"])
+    self.mocks = {
+      'get_os_display_string': MagicMock(return_value="Windows 11-24H2"),
+      'get_os_eol_info': MagicMock(return_value=("2030-01-01", False)),
+      'update_scoop_repos': MagicMock(return_value=True),
+      'get_scoop_status': MagicMock(return_value=[]),
+      'get_running_apps': MagicMock(return_value={}),
+      'update_scoop_apps': MagicMock(return_value={}),
+      'cleanup_scoop': MagicMock(return_value=[]),
+      'report_winget_outdated': MagicMock(),
+    }
+    self.mocks['cleanup_scoop'].side_effect = lambda: (self.calls.cleanup(), self.cleanup_result)[1]
+    self.cleanup_result = []
+    self.patchers = [patch(f'{self.MODULE}.{name}', mock) for name, mock in self.mocks.items()]
+    for patcher in self.patchers:
+      patcher.start()
+      self.addCleanup(patcher.stop)
+
+  def final_status(self):
+    return self.issue.atomic_update_with_retry.call_args.kwargs["status"]
+
+  def test_cleanup_runs_after_final_status_update(self):
+    run(self.issue, "host")
+    names = [c[0] for c in self.calls.mock_calls if c[0] in ("cleanup", "atomic")]
+    self.assertEqual(names, ["atomic", "atomic", "atomic", "cleanup"])
+
+  def test_app_still_outdated_after_zero_exit_marks_failed(self):
+    outdated = {'name': 'a', 'installed': '1', 'latest': '2', 'missing': '', 'info': ''}
+    self.mocks['get_scoop_status'].side_effect = [[outdated], [outdated]]
+    self.mocks['update_scoop_apps'].return_value = {'a': True}
+    run(self.issue, "host")
+    self.assertEqual(self.final_status(), "failed")
+    self.assertEqual(self.issue.atomic_update_with_retry.call_args.kwargs["failed"], "1")
+    self.assertEqual(self.issue.atomic_update_with_retry.call_args.kwargs["upgraded"], "0")
+
+  def test_app_no_longer_outdated_after_update_is_success(self):
+    outdated = {'name': 'a', 'installed': '1', 'latest': '2', 'missing': '', 'info': ''}
+    self.mocks['get_scoop_status'].side_effect = [[outdated], []]
+    self.mocks['update_scoop_apps'].return_value = {'a': True}
+    run(self.issue, "host")
+    self.assertEqual(self.final_status(), "success")
+    self.assertEqual(self.issue.atomic_update_with_retry.call_args.kwargs["upgraded"], "1")
+
+  def test_other_outdated_app_not_attempted_does_not_fail_status(self):
+    other = {'name': 'other', 'installed': '1', 'latest': '2', 'missing': '', 'info': ''}
+    self.mocks['get_scoop_status'].side_effect = [[], [other]]
+    run(self.issue, "host")
+    self.assertEqual(self.final_status(), "success")
+
+  def test_cleanup_failure_posts_one_comment_and_keeps_success(self):
+    self.cleanup_result = [("scoop cleanup *", 1)]
+    run(self.issue, "host")
+    self.assertEqual(self.final_status(), "success")
+    comments = [c.args[0] for c in self.issue.comment.call_args_list if "scoop cleanup" in c.args[0]]
+    self.assertEqual(len(comments), 1)
+    self.assertIn("| `scoop cleanup *` | 1 |", comments[0])
+
+  def test_no_cleanup_comment_when_cleanup_succeeds(self):
+    run(self.issue, "host")
+    comments = [c.args[0] for c in self.issue.comment.call_args_list if "scoop cleanup" in c.args[0]]
+    self.assertEqual(comments, [])
+
+  def test_cleanup_comment_failure_does_not_change_status(self):
+    self.cleanup_result = [("scoop cleanup *", 1)]
+    def fail_on_cleanup_comment(body):
+      if "scoop cleanup" in body:
+        raise Exception("api down")
+    self.issue.comment.side_effect = fail_on_cleanup_comment
+    run(self.issue, "host")
+    self.assertEqual(self.final_status(), "success")
+    self.mocks['report_winget_outdated'].assert_called_once()
+
+  def test_repos_update_failure_marks_failed(self):
+    self.mocks['update_scoop_repos'].return_value = False
+    run(self.issue, "host")
+    self.assertEqual(self.final_status(), "failed")
+
+  def test_app_update_failure_marks_failed(self):
+    self.mocks['get_scoop_status'].side_effect = [[{'name': 'a', 'installed': '1', 'latest': '2', 'missing': '', 'info': ''}], []]
+    self.mocks['update_scoop_apps'].return_value = {'a': False}
+    run(self.issue, "host")
+    self.assertEqual(self.final_status(), "failed")
+
+  def test_winget_report_failure_does_not_change_status(self):
+    self.mocks['report_winget_outdated'].side_effect = Exception("boom")
+    run(self.issue, "host")
+    self.assertEqual(self.final_status(), "success")
+
+  def test_winget_report_runs_after_final_status(self):
+    self.mocks['report_winget_outdated'].side_effect = lambda: self.calls.winget()
+    run(self.issue, "host")
+    names = [c[0] for c in self.calls.mock_calls if c[0] in ("atomic", "winget")]
+    self.assertEqual(names[-1], "winget")
+    self.assertEqual(names.count("winget"), 1)
 
 
 if __name__ == '__main__':
