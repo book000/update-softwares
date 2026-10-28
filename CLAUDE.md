@@ -21,6 +21,7 @@
 - 主な機能:
   - Linux システムの apt パッケージ更新 (dist-upgrade)
   - Windows システムの scoop パッケージ更新
+  - Windows: scoop 実行の最後に winget の更新可能パッケージ (自動更新可能 / 手動対応) をコンソールとローカルログに表示 (更新は行わない。`winget pin` 済みは除外)
   - GitHub Issues API との統合 (issue ステータスの取得・更新)
   - アトミック更新メカニズム (並行実行時の競合防止)
   - OS の End-of-Life (EOL) 情報の取得と表示
@@ -79,7 +80,7 @@ python3 -m src <ISSUE_NUMBER>
 - **メインエントリ**: `src/__main__.py` - issue 番号を解析、GitHubIssue を初期化、プラットフォーム固有の更新を実行
 - **コアロジック**: `src/__init__.py` - アトミック更新機能を持つ GitHubIssue クラス
 - **Linux サポート**: `src/linux/update_apt_softwares.py` - apt パッケージ管理
-- **Windows サポート**: `src/windows/update_scoop_softwares.py` - scoop パッケージ管理
+- **Windows サポート**: `src/windows/update_scoop_softwares.py` - scoop パッケージ管理、`src/windows/winget_outdated.py` - winget の更新可能パッケージ表示 (表示のみ)
 - **OS EOL 情報**: `src/os_eol.py` - endoflife.date API を利用した OS EOL 情報取得
 - **テスト**: `tests/` - 外部依存関係をモックした包括的なユニットテスト
 
@@ -94,7 +95,7 @@ update-softwares/
 │   ├── __main__.py            # エントリポイント、メインロジック
 │   ├── os_eol.py              # OS EOL 情報取得モジュール
 │   ├── linux/                 # Linux (apt) 実装
-│   └── windows/               # Windows (scoop) 実装
+│   └── windows/               # Windows (scoop) 実装、winget_outdated.py (winget 更新可能パッケージ表示)
 ├── tests/                      # テストスイート
 ├── requirements.txt            # Python 依存関係
 ├── update-softwares.sh         # Linux デプロイメントスクリプト
@@ -179,6 +180,7 @@ update-softwares/
 - **GitHub トークン必須**: `data/github_token.txt` に有効なトークンを記載する
 - **Linux: root 権限必須**: apt-get 操作のため
 - **Windows: scoop インストール必須**: scoop コマンドを使用する
+- **Windows: winget 更新可能パッケージ表示は任意**: PowerShell 7 (`pwsh`) と `Microsoft.WinGet.Client` モジュールが必要。未導入の場合は警告を出してスキップする (自動インストールはしない。セットアップ手順は README.md を参照)
 - **GitHub Issue 形式要件**: Issue 本文に markdown テーブルを含み、各行末に `<!-- update-softwares#hostname#package_manager -->` コメントを含む必要がある
 - **Renovate 統合**: 外部テンプレート使用 (`github>book000/templates//renovate/base-public`)
 - **アトミック更新メカニズム**: 並行実行時の競合を防止するため、リトライロジックを実装している

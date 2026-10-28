@@ -11,26 +11,45 @@ import psutil
 import traceback
 
 from ..os_eol import get_os_eol_info, get_os_display_string
+from .winget_outdated import report_winget_outdated
+
+MAX_RETRIES = 5
+RETRY_INTERVAL_SECONDS = 5
+
+def run_scoop_with_retry(args, description):
+  """scoop コマンドを実行し、終了コードが 0 以外または起動に失敗した場合はリトライする。
+
+  Args:
+    args: scoop に渡す引数のリスト (例: ["update", "app"])。
+    description: ログ表示用の対象の説明。
+
+  Returns:
+    bool: いずれかの試行で終了コード 0 になった場合は True、全試行が失敗した場合は False。
+  """
+  for attempt in range(1, MAX_RETRIES + 1):
+    try:
+      result = subprocess.run(["scoop"] + args, shell=True)
+      failure = f"exit code {result.returncode}" if result.returncode != 0 else None
+    except OSError as e:
+      failure = str(e)
+
+    if failure is None:
+      return True
+
+    print(f"An error occurred during {description} ({failure}). ({attempt}/{MAX_RETRIES})")
+    if attempt < MAX_RETRIES:
+      time.sleep(RETRY_INTERVAL_SECONDS)
+
+  print(f"Failed {description} after {MAX_RETRIES} attempts.")
+  return False
 
 def update_scoop_repos():
-  # Scoop update を実行し、リポジトリを更新する
-  # 失敗した場合、5回リトライする
-  retry_count = 0
-  max_retries = 5
+  """scoop update を実行し、リポジトリを更新する。失敗した場合は MAX_RETRIES 回まで試行する。
 
-  while retry_count < max_retries:
-    try:
-      os.system("scoop update")
-      break
-    except Exception:
-      retry_count += 1
-      print(f"An error occurred during Scoop update. Retrying... ({retry_count}/{max_retries})")
-      time.sleep(5)
-
-  if retry_count == max_retries:
-    print(f"Failed to update Scoop after {max_retries} retries.")
-    return False
-  return True
+  Returns:
+    bool: 更新に成功した場合は True、全試行が失敗した場合は False。
+  """
+  return run_scoop_with_retry(["update"], "Scoop update")
 
 def get_scoop_status():
     raw_output = os.popen("scoop status").read()
@@ -158,26 +177,10 @@ def update_scoop_apps(app_names):
     # Scoop で管理されているアプリケーションをアップグレードする
     results = {}
     for app_name in app_names:
-        retry_count = 0
-        max_retries = 5
-
-        while retry_count < max_retries:
-            try:
-                print(f"Updating {app_name}... ", end="")
-                os.system(f"scoop update {app_name}")
-                print("Updated.")
-                break
-            except Exception:
-                retry_count += 1
-                print(f"An error occurred during updating {app_name}. Retrying... ({retry_count}/{max_retries})")
-                time.sleep(5)
-
-        if retry_count == max_retries:
-            print(f"Failed to update {app_name} after {max_retries} retries.")
-            results[app_name] = False
-        else:
+        print(f"Updating {app_name}...")
+        results[app_name] = run_scoop_with_retry(["update", app_name], f"updating {app_name}")
+        if results[app_name]:
             print(f"Successfully updated {app_name}.")
-            results[app_name] = True
 
     return results
 
@@ -294,30 +297,57 @@ def start_app(app_name, app_processes):
         except Exception as e:
             print(f"Failed to start {exe_path_str}: {e}")
 
-def cleanup_scoop() -> bool:
+def cleanup_scoop() -> list[tuple[str, int | None]]:
     """scoop のクリーンアップとキャッシュ削除を実行する。
 
     Returns:
-        bool: すべてのコマンドが正常終了した場合は True、いずれかが失敗した場合は False。
+        list[tuple[str, int | None]]: 失敗したコマンドと終了コードのリスト。
+            すべて成功した場合は空リスト。起動自体に失敗した場合の終了コードは None。
     """
     commands = [
         ["scoop", "cleanup", "*"],
         ["scoop", "cache", "rm", "*"],
     ]
-    success = True
+    failures = []
     for command in commands:
+        command_line = " ".join(command)
         try:
             result = subprocess.run(command, shell=True, capture_output=True, text=True)
         except OSError as e:
-            success = False
-            logger.error(f"Command failed to launch via cmd.exe (shell=True): {' '.join(command)} ({e})")
+            failures.append((command_line, None))
+            logger.error(f"Command failed to launch via cmd.exe (shell=True): {command_line} ({e})")
             continue
         if result.returncode != 0:
-            success = False
-            logger.error(f"Command failed: {' '.join(command)} (exit code {result.returncode})")
+            failures.append((command_line, result.returncode))
+            logger.error(f"Command failed: {command_line} (exit code {result.returncode})")
             if result.stderr:
                 logger.error(f"stderr: {result.stderr}")
-    return success
+    return failures
+
+def post_cleanup_warning(github_issue, hostname, cleanup_failures):
+  """scoop のクリーンアップ失敗を GitHub Issue にコメントする。
+
+  使用中ファイルが原因のことが多いため警告扱いとし、stderr やアプリ名は載せない。
+
+  Args:
+    github_issue: コメント先の GitHubIssue。
+    hostname: 実行中のホスト名。
+    cleanup_failures: cleanup_scoop() の戻り値 (失敗したコマンドと終了コードのリスト)。
+  """
+  rows = ["| Command | Exit code |", "| --- | --- |"]
+  for command_line, returncode in cleanup_failures:
+    rows.append(f"| `{command_line}` | {'failed to launch' if returncode is None else returncode} |")
+  comment_body = textwrap.dedent("""
+  ## {markdown_computer_name} : scoop cleanup
+
+  Cleanup finished with warnings. The upgrade status above is not affected.
+
+  {failure_list}
+  """).strip().format(
+      markdown_computer_name=github_issue.get_markdown_computer_name(hostname),
+      failure_list="\n".join(rows),
+  )
+  github_issue.comment(comment_body)
 
 def run(github_issue, hostname) -> None:
     try:
@@ -338,7 +368,7 @@ def run(github_issue, hostname) -> None:
             operation_system=os_display,
         )
 
-        update_scoop_repos()
+        repos_updated = update_scoop_repos()
 
         status_results = get_scoop_status()
         post_github_comment(github_issue, hostname, status_results)
@@ -381,7 +411,10 @@ def run(github_issue, hostname) -> None:
         success_count = sum(1 for result in merged_results.values() if result)
         failed_count = len(merged_results) - success_count
 
-        status = "success" if failed_count == 0 else "failed"
+        # クリーンアップの失敗は警告扱いのため、ステータスには影響させない
+        cleanup_failures = cleanup_scoop()
+
+        status = "success" if repos_updated and failed_count == 0 else "failed"
 
         # Set final status atomically
         github_issue.atomic_update_with_retry(
@@ -395,14 +428,22 @@ def run(github_issue, hostname) -> None:
             operation_system=os_display,
         )
 
-        # scoop のクリーンアップを実行
-        cleanup_scoop()
+        if cleanup_failures:
+            try:
+                post_cleanup_warning(github_issue, hostname, cleanup_failures)
+            except Exception as e:
+                logger.warning(f"Failed to post scoop cleanup warning: {e}")
 
         upgraded_status_results = get_scoop_status()
         print("Failed upgrade applications:")
         for app in upgraded_status_results:
               print(f" - {app['name']}")
         print("Scoop update completed.")
+
+        try:
+            report_winget_outdated()
+        except Exception as e:
+            logger.warning(f"Failed to report outdated winget packages: {e}")
     except Exception as e:
         logger.error(f"An error occurred during the upgrade: {e}")
         logger.error(traceback.format_exc())
