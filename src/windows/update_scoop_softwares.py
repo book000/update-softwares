@@ -408,11 +408,16 @@ def run(github_issue, hostname) -> None:
                 running_apps_results[app_name] = result[app_name]
 
         merged_results = {**not_running_apps_results, **running_apps_results}
+
+        # scoop はエラーでも終了コード 0 を返すことがあるため、更新後も未更新として残った (更新を試みた) アプリは失敗とする
+        remaining_status_results = get_scoop_status()
+        remaining_app_names = {app["name"] for app in remaining_status_results}
+        for app_name in merged_results:
+            if app_name in remaining_app_names:
+                merged_results[app_name] = False
+
         success_count = sum(1 for result in merged_results.values() if result)
         failed_count = len(merged_results) - success_count
-
-        # クリーンアップの失敗は警告扱いのため、ステータスには影響させない
-        cleanup_failures = cleanup_scoop()
 
         status = "success" if repos_updated and failed_count == 0 else "failed"
 
@@ -428,15 +433,16 @@ def run(github_issue, hostname) -> None:
             operation_system=os_display,
         )
 
+        # クリーンアップは最終ステータスの確定後に行い、ハングしても Issue を running のまま残さない。失敗は警告扱いとし、ステータスには影響させない
+        cleanup_failures = cleanup_scoop()
         if cleanup_failures:
             try:
                 post_cleanup_warning(github_issue, hostname, cleanup_failures)
             except Exception as e:
                 logger.warning(f"Failed to post scoop cleanup warning: {e}")
 
-        upgraded_status_results = get_scoop_status()
         print("Failed upgrade applications:")
-        for app in upgraded_status_results:
+        for app in remaining_status_results:
               print(f" - {app['name']}")
         print("Scoop update completed.")
 

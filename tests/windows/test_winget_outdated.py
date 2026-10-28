@@ -57,6 +57,7 @@ class TestGetWingetOutdated(unittest.TestCase):
     args = mock_run.call_args[0][0]
     self.assertEqual(args[:4], ["pwsh", "-NoProfile", "-NonInteractive", "-Command"])
     self.assertEqual(mock_run.call_args[1]["timeout"], 120)
+    self.assertIs(mock_run.call_args[1]["stdin"], subprocess.DEVNULL)
 
   @patch("src.windows.winget_outdated.subprocess.run")
   def test_wraps_single_object_into_list(self, mock_run):
@@ -100,6 +101,12 @@ class TestGetWingetPinnedIds(unittest.TestCase):
     mock_run.return_value = _completed(PIN_LIST_JA)
     ids = get_winget_pinned_ids({"Vendor.PinB", "Vendor.Other"})
     self.assertEqual(ids, {"Vendor.PinB"})
+
+  @patch("src.windows.winget_outdated.subprocess.run")
+  def test_pin_list_does_not_wait_for_stdin(self, mock_run):
+    mock_run.return_value = _completed(PIN_LIST_EN)
+    get_winget_pinned_ids({"Vendor.PinA"})
+    self.assertIs(mock_run.call_args[1]["stdin"], subprocess.DEVNULL)
 
   @patch("src.windows.winget_outdated.subprocess.run")
   def test_does_not_match_partial_id(self, mock_run):
@@ -169,6 +176,27 @@ class TestReportWingetOutdated(unittest.TestCase):
   @patch("src.windows.winget_outdated.get_winget_outdated", side_effect=RuntimeError("boom"))
   def test_does_not_propagate_unexpected_errors(self, mock_outdated):
     report_winget_outdated()
+
+  @patch("src.windows.winget_outdated.sys.stdout", MagicMock(encoding="cp932"))
+  @patch("src.windows.winget_outdated.get_winget_pinned_ids", return_value=set())
+  @patch("src.windows.winget_outdated.get_winget_outdated")
+  def test_unencodable_name_does_not_drop_remaining_lines(self, mock_outdated, mock_pinned):
+    unencodable = _pkg("Vendor.A", True)
+    unencodable["Name"] = "name™"
+    mock_outdated.return_value = [unencodable, _pkg("Vendor.B", False)]
+    printed = []
+
+    def fake_print(line):
+      if "™" in line:
+        raise UnicodeEncodeError("cp932", line, 0, 1, "unencodable")
+      printed.append(line)
+
+    with patch("builtins.print", side_effect=fake_print):
+      report_winget_outdated()
+
+    output = "\n".join(printed)
+    self.assertIn("name? (Vendor.A)", output)
+    self.assertIn("name-Vendor.B", output)
 
 
 if __name__ == "__main__":

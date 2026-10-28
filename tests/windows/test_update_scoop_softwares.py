@@ -468,10 +468,33 @@ class TestRunStatusFlow(unittest.TestCase):
   def final_status(self):
     return self.issue.atomic_update_with_retry.call_args.kwargs["status"]
 
-  def test_cleanup_runs_before_final_status_update(self):
+  def test_cleanup_runs_after_final_status_update(self):
     run(self.issue, "host")
     names = [c[0] for c in self.calls.mock_calls if c[0] in ("cleanup", "atomic")]
-    self.assertEqual(names, ["atomic", "atomic", "cleanup", "atomic"])
+    self.assertEqual(names, ["atomic", "atomic", "atomic", "cleanup"])
+
+  def test_app_still_outdated_after_zero_exit_marks_failed(self):
+    outdated = {'name': 'a', 'installed': '1', 'latest': '2', 'missing': '', 'info': ''}
+    self.mocks['get_scoop_status'].side_effect = [[outdated], [outdated]]
+    self.mocks['update_scoop_apps'].return_value = {'a': True}
+    run(self.issue, "host")
+    self.assertEqual(self.final_status(), "failed")
+    self.assertEqual(self.issue.atomic_update_with_retry.call_args.kwargs["failed"], "1")
+    self.assertEqual(self.issue.atomic_update_with_retry.call_args.kwargs["upgraded"], "0")
+
+  def test_app_no_longer_outdated_after_update_is_success(self):
+    outdated = {'name': 'a', 'installed': '1', 'latest': '2', 'missing': '', 'info': ''}
+    self.mocks['get_scoop_status'].side_effect = [[outdated], []]
+    self.mocks['update_scoop_apps'].return_value = {'a': True}
+    run(self.issue, "host")
+    self.assertEqual(self.final_status(), "success")
+    self.assertEqual(self.issue.atomic_update_with_retry.call_args.kwargs["upgraded"], "1")
+
+  def test_other_outdated_app_not_attempted_does_not_fail_status(self):
+    other = {'name': 'other', 'installed': '1', 'latest': '2', 'missing': '', 'info': ''}
+    self.mocks['get_scoop_status'].side_effect = [[], [other]]
+    run(self.issue, "host")
+    self.assertEqual(self.final_status(), "success")
 
   def test_cleanup_failure_posts_one_comment_and_keeps_success(self):
     self.cleanup_result = [("scoop cleanup *", 1)]

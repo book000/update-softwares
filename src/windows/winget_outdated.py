@@ -1,6 +1,7 @@
 import json
 import logging
 import subprocess
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ def get_winget_outdated():
   try:
     result = subprocess.run(
       ["pwsh", "-NoProfile", "-NonInteractive", "-Command", POWERSHELL_SCRIPT],
+      stdin=subprocess.DEVNULL,
       capture_output=True,
       text=True,
       encoding="utf-8",
@@ -86,6 +88,7 @@ def get_winget_pinned_ids(package_ids):
   try:
     result = subprocess.run(
       ["winget", "pin", "list"],
+      stdin=subprocess.DEVNULL,
       capture_output=True,
       text=True,
       encoding="utf-8",
@@ -117,6 +120,18 @@ def classify(outdated, pinned_ids):
   return auto_updatable, manual
 
 
+def _safe_print(line):
+  """コンソールに 1 行表示する。標準出力のエンコーディングで表せない文字は置換して表示する。
+
+  Args:
+    line: 表示する行。
+  """
+  try:
+    print(line)
+  except UnicodeEncodeError:
+    encoding = sys.stdout.encoding or "utf-8"
+    print(line.encode(encoding, errors="replace").decode(encoding))
+
 def _report_section(title, packages):
   """表示用に、見出しとパッケージごとの行のリストを組み立てる。
 
@@ -144,7 +159,7 @@ def report_winget_outdated():
       return
 
     if not outdated:
-      print("No outdated winget packages.")
+      _safe_print("No outdated winget packages.")
       logger.debug("No outdated winget packages.")
       return
 
@@ -160,7 +175,7 @@ def report_winget_outdated():
     lines += _report_section("manual (reinstall may be required)", manual)
     # コンソールには print、ログファイルには DEBUG で出す (INFO だとコンソールに二重表示される)
     for line in lines:
-      print(line)
+      _safe_print(line)
       logger.debug(line)
   except Exception as e:
     logger.warning("Failed to report outdated winget packages: %s", e)

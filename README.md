@@ -35,7 +35,7 @@ Windows では scoop のパッケージを更新したあと、実行の最後�
 2. `Microsoft.WinGet.Client` モジュール (PowerShell 7 で実行します)
 
    ```powershell
-   Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery
+   Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Scope CurrentUser
    ```
 
 ### 表示から除外する
